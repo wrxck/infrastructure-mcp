@@ -16,6 +16,13 @@ public class InfrastructureMcpServer {
     private static final String SERVER_VERSION = "1.0.0";
 
     public static void main(String[] args) {
+        for (String arg : args) {
+            if ("--setup".equals(arg) || "--install".equals(arg)) {
+                new SetupTui(System.in, System.out).run();
+                return;
+            }
+        }
+
         try {
             var config = ServerConfig.fromSystem();
             var tools = new InfrastructureTools(config);
