@@ -26,8 +26,15 @@ final class InfrastructureTools {
 
     InfrastructureTools(ServerConfig config) {
         var cfLimiter = new com.cloudflare.mcp.RateLimiter(240);
-        this.cloudflare = new CloudflareRestClient(
-                config.cloudflareApiToken(), config.cloudflareAccountId(), cfLimiter);
+
+        com.cloudflare.mcp.CloudflareAuth cfAuth;
+        if (config.isApiTokenAuth()) {
+            cfAuth = com.cloudflare.mcp.CloudflareAuth.apiToken(config.cloudflareApiToken());
+        } else {
+            cfAuth = com.cloudflare.mcp.CloudflareAuth.globalApiKey(
+                    config.cloudflareApiKey(), config.cloudflareEmail());
+        }
+        this.cloudflare = new CloudflareRestClient(cfAuth, config.cloudflareAccountId(), cfLimiter);
 
         var ncLimiter = new com.namecheap.mcp.RateLimiter(20, 700);
         this.namecheap = new NamecheapClient(
@@ -199,13 +206,15 @@ final class InfrastructureTools {
                     + " (id: " + existing.get("id") + ", status: " + existing.get("status") + ")");
         }
 
-        // 2. Get DNS from Namecheap
-        List<Map<String, Object>> ncRecords;
-        try {
-            ncRecords = namecheap.getDnsHostsByDomain(domain);
-            summary.put("namecheapRecordsFound", ncRecords.size());
-        } catch (Exception e) {
-            return ResultHelper.errorResult("Failed to fetch Namecheap DNS for " + domain + ": " + e.getMessage());
+        // 2. Get DNS from Namecheap (only if migrating)
+        List<Map<String, Object>> ncRecords = List.of();
+        if (migrateRecords) {
+            try {
+                ncRecords = namecheap.getDnsHostsByDomain(domain);
+                summary.put("namecheapRecordsFound", ncRecords.size());
+            } catch (Exception e) {
+                return ResultHelper.errorResult("Failed to fetch Namecheap DNS for " + domain + ": " + e.getMessage());
+            }
         }
 
         // 3. Create zone in Cloudflare
@@ -221,34 +230,21 @@ final class InfrastructureTools {
 
         String zoneId = (String) zone.get("id");
 
-        // 4. Migrate DNS records
+        // 4. Migrate DNS records (with retry for transient 403s on new zones)
         if (migrateRecords) {
             var conversion = DnsRecordMapper.convertAll(ncRecords, domain);
-            int created = 0;
-            var errors = new ArrayList<String>();
-            for (var cfRecord : conversion.mapped()) {
-                try {
-                    cloudflare.createDnsRecord(zoneId,
-                            (String) cfRecord.get("type"),
-                            (String) cfRecord.get("name"),
-                            (String) cfRecord.get("content"),
-                            (Boolean) cfRecord.get("proxied"),
-                            ((Number) cfRecord.get("ttl")).intValue(),
-                            cfRecord.containsKey("priority") ? ((Number) cfRecord.get("priority")).intValue() : null);
-                    created++;
-                } catch (Exception e) {
-                    errors.add(cfRecord.get("type") + " " + cfRecord.get("name") + ": " + e.getMessage());
-                }
-            }
-            summary.put("recordsMigrated", created);
+            var dnsResult = createDnsRecordsWithRetry(zoneId, conversion.mapped());
+            summary.put("recordsMigrated", dnsResult.get("created"));
             summary.put("recordsSkipped", conversion.skipped().size());
-            if (!errors.isEmpty()) summary.put("migrationErrors", errors);
+            @SuppressWarnings("unchecked")
+            var dnsErrors = (List<String>) dnsResult.get("errors");
+            if (!dnsErrors.isEmpty()) summary.put("migrationErrors", dnsErrors);
         }
 
-        // 5. Update nameservers at Namecheap
+        // 5. Update nameservers at Namecheap (skip if DNS wasn't migrated — domain may not be in Namecheap)
         @SuppressWarnings("unchecked")
         var cfNameservers = (List<String>) zone.get("nameServers");
-        if (cfNameservers != null && !cfNameservers.isEmpty()) {
+        if (migrateRecords && cfNameservers != null && !cfNameservers.isEmpty()) {
             try {
                 namecheap.setNameserversByDomain(domain, cfNameservers);
                 summary.put("nameserversUpdated", true);
@@ -256,6 +252,9 @@ final class InfrastructureTools {
                 summary.put("nameserversUpdated", false);
                 summary.put("nameserverError", e.getMessage());
             }
+        } else if (!migrateRecords) {
+            summary.put("nameserversUpdated", false);
+            summary.put("nameserverNote", "Update nameservers manually at your registrar to: " + cfNameservers);
         }
 
         // 6. Apply protection
@@ -286,28 +285,15 @@ final class InfrastructureTools {
         }
 
         var conversion = DnsRecordMapper.convertAll(ncRecords, domain);
-        int created = 0;
-        var errors = new ArrayList<String>();
-        for (var cfRecord : conversion.mapped()) {
-            try {
-                cloudflare.createDnsRecord(zoneId,
-                        (String) cfRecord.get("type"),
-                        (String) cfRecord.get("name"),
-                        (String) cfRecord.get("content"),
-                        (Boolean) cfRecord.get("proxied"),
-                        ((Number) cfRecord.get("ttl")).intValue(),
-                        cfRecord.containsKey("priority") ? ((Number) cfRecord.get("priority")).intValue() : null);
-                created++;
-            } catch (Exception e) {
-                errors.add(cfRecord.get("type") + " " + cfRecord.get("name") + ": " + e.getMessage());
-            }
-        }
+        var dnsResult = createDnsRecordsWithRetry(zoneId, conversion.mapped());
 
         var result = new LinkedHashMap<String, Object>();
         result.put("domain", domain);
-        result.put("recordsMigrated", created);
+        result.put("recordsMigrated", dnsResult.get("created"));
         result.put("recordsSkipped", conversion.skipped().size());
-        if (!errors.isEmpty()) result.put("errors", errors);
+        @SuppressWarnings("unchecked")
+        var dnsErrors = (List<String>) dnsResult.get("errors");
+        if (!dnsErrors.isEmpty()) result.put("errors", dnsErrors);
         return ResultHelper.jsonResult(result);
     }
 
@@ -323,6 +309,61 @@ final class InfrastructureTools {
         return ResultHelper.jsonResult(result);
     }
 
+    /**
+     * Create DNS records with retry — newly created zones may not be available
+     * on all Cloudflare API nodes immediately, causing transient 403 errors.
+     */
+    private Map<String, Object> createDnsRecordsWithRetry(String zoneId,
+                                                           List<Map<String, Object>> records) {
+        int created = 0;
+        var errors = new ArrayList<String>();
+
+        for (var cfRecord : records) {
+            boolean success = false;
+            String lastError = null;
+
+            for (int attempt = 0; attempt < 3; attempt++) {
+                try {
+                    if (attempt > 0) {
+                        Thread.sleep(2000L * attempt);
+                        log.info("Retry {} for {} {}", attempt,
+                                cfRecord.get("type"), cfRecord.get("name"));
+                    }
+                    cloudflare.createDnsRecord(zoneId,
+                            (String) cfRecord.get("type"),
+                            (String) cfRecord.get("name"),
+                            (String) cfRecord.get("content"),
+                            (Boolean) cfRecord.get("proxied"),
+                            ((Number) cfRecord.get("ttl")).intValue(),
+                            cfRecord.containsKey("priority")
+                                    ? ((Number) cfRecord.get("priority")).intValue() : null);
+                    success = true;
+                    break;
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    lastError = "Interrupted";
+                    break;
+                } catch (Exception e) {
+                    lastError = e.getMessage();
+                    if (!lastError.contains("403") && !lastError.contains("Authentication error")) {
+                        break; // non-transient error, don't retry
+                    }
+                }
+            }
+
+            if (success) {
+                created++;
+            } else {
+                errors.add(cfRecord.get("type") + " " + cfRecord.get("name") + ": " + lastError);
+            }
+        }
+
+        var result = new LinkedHashMap<String, Object>();
+        result.put("created", created);
+        result.put("errors", errors);
+        return result;
+    }
+
     // --- Internal helpers ---
 
     private Map<String, Object> applyProtectionSettings(String zoneId) {
@@ -335,11 +376,18 @@ final class InfrastructureTools {
                 if (action.isCustomEndpoint()) {
                     switch (action.name()) {
                         case "dnssec" -> cloudflare.enableDnssec(zoneId);
-                        case "bot_fight_mode", "ddos_managed_rulesets" -> {
-                            // Auto-enabled on free tier, no API action needed
+                        case "bot_fight_mode" -> cloudflare.enableBotFightMode(zoneId);
+                        case "ddos_managed_rulesets" -> {
+                            // Always-on for all plans, no API action needed
                             applied++;
                             continue;
                         }
+                        case "waf_free_managed_ruleset" -> deployFreeWafRuleset(zoneId);
+                        case "managed_transforms" -> cloudflare.enableManagedTransforms(
+                                zoneId,
+                                ProtectionSettings.requestTransformIds(),
+                                ProtectionSettings.responseTransformIds());
+                        case "url_normalization" -> cloudflare.enableUrlNormalization(zoneId);
                         default -> {
                             log.warn("Unknown custom endpoint: {}", action.name());
                             continue;
@@ -360,6 +408,40 @@ final class InfrastructureTools {
         result.put("failed", failed);
         if (!errors.isEmpty()) result.put("errors", errors);
         return result;
+    }
+
+    /**
+     * Discover and deploy the Cloudflare Free Managed WAF Ruleset.
+     * Looks up account rulesets to find the free managed one, then deploys it.
+     */
+    private void deployFreeWafRuleset(String zoneId) {
+        // Check if already deployed
+        var existing = cloudflare.getEntrypointRuleset(zoneId, "http_request_firewall_managed");
+        if (existing != null) {
+            log.info("WAF managed ruleset already deployed for zone {}", zoneId);
+            return;
+        }
+
+        // Find the free managed ruleset from account rulesets
+        var rulesets = cloudflare.listAccountRulesets();
+        String freeRulesetId = null;
+        for (var rs : rulesets) {
+            String name = ((String) rs.get("name")).toLowerCase();
+            String kind = (String) rs.get("kind");
+            String phase = (String) rs.get("phase");
+            if ("managed".equals(kind)
+                    && "http_request_firewall_managed".equals(phase)
+                    && (name.contains("free") || name.contains("cloudflare managed"))) {
+                freeRulesetId = (String) rs.get("id");
+                break;
+            }
+        }
+
+        if (freeRulesetId == null) {
+            throw new RuntimeException("Could not find free WAF managed ruleset in account");
+        }
+
+        cloudflare.deployManagedRuleset(zoneId, "http_request_firewall_managed", freeRulesetId);
     }
 
     // --- Schema helpers ---

@@ -12,7 +12,8 @@ class InfrastructureToolsTest {
 
     private static ServerConfig testConfig() {
         return ServerConfig.fromEnv(
-                "test-cf-token", "test-cf-account",
+                "test-cf-token", null, null,
+                "test-cf-account",
                 "test-nc-user", "test-nc-key", "127.0.0.1",
                 "/tmp/nonexistent-registry.json", "/usr/bin/false");
     }

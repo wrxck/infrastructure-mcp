@@ -62,6 +62,54 @@ class SetupTuiTest {
     }
 
     @Nested
+    class AuthType {
+
+        @Test
+        void defaultsToGlobalApiKey() {
+            var tui = createTui("");
+            assertEquals("global", tui.getCloudflareAuthType());
+        }
+
+        @Test
+        void validWithGlobalApiKey() {
+            var tui = createTui("");
+            tui.setCloudflareAuthType("global");
+            tui.setCloudflareApiKey("key");
+            tui.setCloudflareEmail("user@example.com");
+            tui.setCloudflareAccountId("id");
+            tui.setNamecheapApiUser("user");
+            tui.setNamecheapApiKey("key");
+            tui.setNamecheapClientIp("1.2.3.4");
+            assertTrue(tui.isConfigValid());
+        }
+
+        @Test
+        void validWithApiToken() {
+            var tui = createTui("");
+            tui.setCloudflareAuthType("token");
+            tui.setCloudflareApiToken("token");
+            tui.setCloudflareAccountId("id");
+            tui.setNamecheapApiUser("user");
+            tui.setNamecheapApiKey("key");
+            tui.setNamecheapClientIp("1.2.3.4");
+            assertTrue(tui.isConfigValid());
+        }
+
+        @Test
+        void invalidGlobalKeyWithoutEmail() {
+            var tui = createTui("");
+            tui.setCloudflareAuthType("global");
+            tui.setCloudflareApiKey("key");
+            tui.setCloudflareEmail("");
+            tui.setCloudflareAccountId("id");
+            tui.setNamecheapApiUser("user");
+            tui.setNamecheapApiKey("key");
+            tui.setNamecheapClientIp("1.2.3.4");
+            assertFalse(tui.isConfigValid());
+        }
+    }
+
+    @Nested
     class Validation {
 
         @Test
@@ -73,6 +121,7 @@ class SetupTuiTest {
         @Test
         void invalidWhenPartial() {
             var tui = createTui("");
+            tui.setCloudflareAuthType("token");
             tui.setCloudflareApiToken("token");
             tui.setCloudflareAccountId("id");
             // Missing namecheap fields
@@ -82,6 +131,7 @@ class SetupTuiTest {
         @Test
         void validWhenAllRequired() {
             var tui = createTui("");
+            tui.setCloudflareAuthType("token");
             tui.setCloudflareApiToken("token");
             tui.setCloudflareAccountId("id");
             tui.setNamecheapApiUser("user");
@@ -93,6 +143,7 @@ class SetupTuiTest {
         @Test
         void invalidWithEmptyToken() {
             var tui = createTui("");
+            tui.setCloudflareAuthType("token");
             tui.setCloudflareApiToken("");
             tui.setCloudflareAccountId("id");
             tui.setNamecheapApiUser("user");
@@ -119,15 +170,15 @@ class SetupTuiTest {
 
         @Test
         void advancePagesWithEnter() {
-            // Welcome -> (enter) -> Cloudflare -> (q)
-            String output = runTui("\n\n\nq\n");
+            // Welcome -> (enter) -> Cloudflare (auth choice + key + email + account + nav) -> (q)
+            String output = runTui("\n\n\n\n\nq\n");
             assertTrue(output.contains("Cloudflare"));
         }
 
         @Test
         void backNavigation() {
-            // Welcome -> (enter) -> Cloudflare -> keep defaults -> back -> Welcome -> quit
-            String output = runTui("\n\n\nb\nq\n");
+            // Welcome -> (enter) -> Cloudflare (auth + key + email + account) -> back -> Welcome -> quit
+            String output = runTui("\n\n\n\n\nb\nq\n");
             assertTrue(output.contains("Welcome"));
         }
     }
@@ -137,24 +188,23 @@ class SetupTuiTest {
 
         @Test
         void welcomePageShowsPrerequisites() {
-            // Just show welcome and quit
             String output = runTui("q\n");
-            assertTrue(output.contains("Cloudflare API token"));
+            assertTrue(output.contains("Cloudflare"));
             assertTrue(output.contains("Namecheap API"));
         }
 
         @Test
-        void cloudflarePagePromptsForCredentials() {
-            // Welcome -> enter -> Cloudflare shows prompts -> quit
-            String output = runTui("\ntest-token\ntest-account\nq\n");
-            assertTrue(output.contains("API Token"));
+        void cloudflarePagePromptsForAuthType() {
+            // Welcome -> enter -> Cloudflare shows auth type choice -> quit
+            String output = runTui("\n1\ntest-key\ntest@email.com\ntest-account\nq\n");
+            assertTrue(output.contains("Global API Key"));
             assertTrue(output.contains("Account ID"));
         }
 
         @Test
         void summaryPageShowsAllFields() {
-            // Welcome(nav) -> CF(token,account,nav) -> NC(user,key,ip,nav) -> Fleet(path,binary,claude,nav) -> Summary(q)
-            String output = runTui("\n\n\n\n\n\n\n\n\n\n\n\n\nq\n");
+            // Welcome(nav) -> CF(authtype,key,email,account,nav) -> NC(user,key,ip,nav) -> Fleet(path,binary,claude,nav) -> Summary(q)
+            String output = runTui("\n\n\n\n\n\n\n\n\n\n\n\n\n\nq\n");
             assertTrue(output.contains("Summary"));
         }
     }
@@ -196,14 +246,18 @@ class SetupTuiTest {
             var tui = createTui("");
             tui.setCloudflareApiToken("t1");
             tui.setCloudflareAccountId("a1");
+            tui.setCloudflareApiKey("k1");
+            tui.setCloudflareEmail("e1");
             tui.setNamecheapApiUser("u1");
-            tui.setNamecheapApiKey("k1");
+            tui.setNamecheapApiKey("nk1");
             tui.setNamecheapClientIp("1.1.1.1");
 
             assertEquals("t1", tui.getCloudflareApiToken());
             assertEquals("a1", tui.getCloudflareAccountId());
+            assertEquals("k1", tui.getCloudflareApiKey());
+            assertEquals("e1", tui.getCloudflareEmail());
             assertEquals("u1", tui.getNamecheapApiUser());
-            assertEquals("k1", tui.getNamecheapApiKey());
+            assertEquals("nk1", tui.getNamecheapApiKey());
             assertEquals("1.1.1.1", tui.getNamecheapClientIp());
         }
     }

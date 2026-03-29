@@ -6,7 +6,7 @@
 
     <groupId>io.github.wrxck</groupId>
     <artifactId>infrastructure-mcp</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.2</version>
     <packaging>jar</packaging>
 
     <name>Infrastructure MCP Server</name>
@@ -42,7 +42,7 @@
         <dependency>
             <groupId>io.github.wrxck</groupId>
             <artifactId>cloudflare-mcp</artifactId>
-            <version>1.0.0</version>
+            <version>1.1.0</version>
         </dependency>
         <dependency>
             <groupId>io.github.wrxck</groupId>
@@ -93,6 +93,10 @@
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>com.infrastructure.mcp.InfrastructureMcpServer</mainClass>
+                                    <manifestEntries>
+                                        <Implementation-Version>${project.version}</Implementation-Version>
+                                        <Implementation-Title>${project.artifactId}</Implementation-Title>
+                                    </manifestEntries>
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
