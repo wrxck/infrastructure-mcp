@@ -10,24 +10,20 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 
 ## How it works
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Claude Code / LLM Client                     │
-│                          (MCP Client)                            │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │ stdio
-                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   Infrastructure MCP Server                      │
-│                        12 MCP tools                              │
-├──────────────────┬──────────────────┬───────────────────────────┤
-│   Fleet Client   │ Namecheap Client │   Cloudflare REST Client  │
-│  (registry.json  │   (XML API)      │      (API v4 JSON)        │
-│   + CLI shell)   │                  │                           │
-└────────┬─────────┴────────┬─────────┴─────────────┬─────────────┘
-         ▼                  ▼                       ▼
-   Fleet Registry    Namecheap API          Cloudflare API v4
-   + fleet CLI       api.namecheap.com      api.cloudflare.com
+```mermaid
+graph TD
+    Client[Claude Code / LLM Client]
+    Client -->|stdio| Server
+
+    subgraph Server[Infrastructure MCP Server — 12 tools]
+        Fleet[Fleet Client<br><i>registry.json + CLI</i>]
+        Namecheap[Namecheap Client<br><i>XML API</i>]
+        Cloudflare[Cloudflare REST Client<br><i>API v4 JSON</i>]
+    end
+
+    Fleet --> FleetAPI[Fleet Registry + CLI]
+    Namecheap --> NCAPI[api.namecheap.com]
+    Cloudflare --> CFAPI[api.cloudflare.com]
 ```
 
 ## Why this exists
@@ -45,6 +41,7 @@ The other security layer is **content sanitization**. DNS records are attacker-c
 - **Domain onboarding** — single command to create a Cloudflare zone, migrate DNS records from Namecheap, update nameservers, and apply 25+ security/performance settings
 - **DNS migration** — automatic Namecheap-to-Cloudflare record conversion with intelligent proxying (mail records unproxied, web records proxied)
 - **Security hardening** — SSL strict mode, HSTS, TLS 1.3, DNSSEC, bot protection, DDoS rulesets, and more — all free-tier compatible
+- **Dual Cloudflare auth** — supports both Global API Key and scoped API Token authentication
 - **Fleet integration** — read app registry, list domains, run Fleet CLI commands
 - **Library reuse** — depends on [cloudflare-mcp](https://github.com/wrxck/cloudflare-mcp) and [namecheap-mcp](https://github.com/wrxck/namecheap-mcp) as Maven libraries (no code duplication)
 - **Content sanitization** — cryptographic boundary markers on untrusted DNS data to defend against prompt injection
@@ -87,7 +84,7 @@ The other security layer is **content sanitization**. DNS records are attacker-c
 ## Prerequisites
 
 - **Java 21** or later
-- **Cloudflare API token** — [create one here](https://dash.cloudflare.com/profile/api-tokens)
+- **Cloudflare credentials** — either a [Global API Key](https://dash.cloudflare.com/profile/api-tokens) or a [scoped API Token](https://dash.cloudflare.com/profile/api-tokens)
 - **Namecheap API access** — [enable here](https://ap.www.namecheap.com/settings/tools/apiaccess)
 - **Fleet** (optional) — only needed for Fleet tools
 
@@ -110,14 +107,14 @@ cd /tmp/cloudflare-mcp && mvn install -DskipTests -q && cd -
 mvn clean package
 ```
 
-This produces `target/infrastructure-mcp-1.0.0.jar` — a self-contained executable JAR (18 MB).
+This produces a self-contained executable JAR in `target/` (~18 MB).
 
 ### 2. Setup (interactive)
 
 Run the built-in setup wizard — it walks you through entering credentials and registers with Claude Code automatically:
 
 ```bash
-java -jar target/infrastructure-mcp-1.0.0.jar --setup
+java -jar target/infrastructure-mcp-*.jar --setup
 ```
 
 The wizard has 5 pages: Welcome, Cloudflare, Namecheap, Fleet, and Summary. Navigate with `enter` (next), `b` (back), and `q` (quit). Secrets are masked in the summary.
@@ -127,8 +124,15 @@ The wizard has 5 pages: Welcome, Cloudflare, Namecheap, Fleet, and Summary. Navi
 If you prefer to configure manually, set the required environment variables:
 
 ```bash
-export CLOUDFLARE_API_TOKEN='your-cloudflare-api-token'
+# Option A: Global API Key (simpler)
+export CLOUDFLARE_API_KEY='your-global-api-key'
+export CLOUDFLARE_EMAIL='your-cloudflare-email'
 export CLOUDFLARE_ACCOUNT_ID='your-cloudflare-account-id'
+
+# Option B: Scoped API Token
+# export CLOUDFLARE_API_TOKEN='your-scoped-api-token'
+# export CLOUDFLARE_ACCOUNT_ID='your-cloudflare-account-id'
+
 export NAMECHEAP_API_USER='your-namecheap-username'
 export NAMECHEAP_API_KEY='your-namecheap-api-key'
 export NAMECHEAP_CLIENT_IP='your-whitelisted-ip'
@@ -138,19 +142,20 @@ export NAMECHEAP_CLIENT_IP='your-whitelisted-ip'
 
 ```bash
 claude mcp add --scope user --transport stdio infrastructure -- \
-  java -jar /path/to/infrastructure-mcp-1.0.0.jar
+  java -jar /path/to/infrastructure-mcp-*.jar
 ```
 
-Or add to `~/.claude/settings.json`:
+Or add to `~/.claude.json`:
 
 ```json
 {
   "mcpServers": {
-    "infrastructure": {
+    "infrastructure-mcp": {
       "command": "java",
-      "args": ["-jar", "/path/to/infrastructure-mcp-1.0.0.jar"],
+      "args": ["-jar", "/path/to/infrastructure-mcp-<version>.jar"],
       "env": {
-        "CLOUDFLARE_API_TOKEN": "your-token",
+        "CLOUDFLARE_API_KEY": "your-global-api-key",
+        "CLOUDFLARE_EMAIL": "your-cloudflare-email",
         "CLOUDFLARE_ACCOUNT_ID": "your-account-id",
         "NAMECHEAP_API_USER": "your-username",
         "NAMECHEAP_API_KEY": "your-api-key",
@@ -161,7 +166,17 @@ Or add to `~/.claude/settings.json`:
 }
 ```
 
-### 4. Use
+### 4. Claude Skill (optional)
+
+Install the included skill for guided setup help:
+
+```bash
+cp skill.md ~/.claude/commands/infrastructure-setup.md
+```
+
+Then use `/infrastructure-setup` in Claude Code for step-by-step configuration guidance.
+
+### 5. Use
 
 ```
 > List all my Fleet apps and their domains
@@ -173,17 +188,31 @@ Or add to `~/.claude/settings.json`:
 
 ## Configuration
 
+### Cloudflare authentication
+
+Two authentication methods are supported:
+
+**Global API Key** — uses `X-Auth-Key` + `X-Auth-Email` headers. Simpler setup, full account access. Set `CLOUDFLARE_API_KEY` and `CLOUDFLARE_EMAIL`.
+
+**Scoped API Token** — uses `Authorization: Bearer` header. Recommended for shared environments. Set `CLOUDFLARE_API_TOKEN`. Required permissions: Zone (Read+Edit), DNS (Read+Edit), Zone Settings (Read+Edit).
+
+If both are set, the API Token takes precedence.
+
 ### Environment variables
 
 | Variable | Description | Required | Default |
 |----------|-------------|:--------:|---------|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token (Bearer auth) | Yes | — |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare scoped API token (Bearer auth) | \* | — |
+| `CLOUDFLARE_API_KEY` | Cloudflare Global API Key | \* | — |
+| `CLOUDFLARE_EMAIL` | Cloudflare account email (required with `API_KEY`) | \* | — |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID | Yes | — |
 | `NAMECHEAP_API_USER` | Namecheap API username | Yes | — |
 | `NAMECHEAP_API_KEY` | Namecheap API key | Yes | — |
 | `NAMECHEAP_CLIENT_IP` | Whitelisted IP for Namecheap API | Yes | — |
 | `FLEET_REGISTRY_PATH` | Path to Fleet's registry.json | No | `/home/matt/fleet/data/registry.json` |
 | `FLEET_BINARY` | Path to fleet CLI binary | No | `fleet` |
+
+\* Provide either `CLOUDFLARE_API_TOKEN` **or** `CLOUDFLARE_API_KEY` + `CLOUDFLARE_EMAIL`.
 
 ## Protection settings
 
@@ -254,20 +283,20 @@ The `migrate_dns` tool automatically converts Namecheap DNS records to Cloudflar
 
 ```
 src/main/java/com/infrastructure/mcp/
-├── InfrastructureMcpServer.java  # Entry point, stdio transport, tool registration
-├── InfrastructureTools.java      # 12 MCP tool definitions and handlers
-├── ServerConfig.java             # Environment variable configuration
-├── FleetClient.java              # Fleet registry reader and CLI wrapper
-├── DnsRecordMapper.java          # Namecheap → Cloudflare DNS record conversion
-├── ProtectionSettings.java       # Cloudflare security/performance settings
-├── ResultHelper.java             # Tool result builders and parameter extraction
-├── ContentSanitizer.java         # Prompt injection defense
-├── RateLimiter.java              # Sliding window rate limiter
-└── SetupTui.java                 # Interactive paginated setup wizard
+    InfrastructureMcpServer.java  — Entry point, stdio transport, tool registration
+    InfrastructureTools.java      — 12 MCP tool definitions and handlers
+    ServerConfig.java             — Environment variable configuration (dual CF auth)
+    FleetClient.java              — Fleet registry reader and CLI wrapper
+    DnsRecordMapper.java          — Namecheap to Cloudflare DNS record conversion
+    ProtectionSettings.java       — Cloudflare security/performance settings
+    ResultHelper.java             — Tool result builders and parameter extraction
+    ContentSanitizer.java         — Prompt injection defense
+    RateLimiter.java              — Sliding window rate limiter
+    SetupTui.java                 — Interactive paginated setup wizard
 
 Library dependencies (used as Maven artifacts):
-├── cloudflare-mcp                # CloudflareRestClient — typed Cloudflare API v4 client
-└── namecheap-mcp                 # NamecheapClient — Namecheap XML API client
+    cloudflare-mcp                — CloudflareRestClient, CloudflareAuth
+    namecheap-mcp                 — NamecheapClient (XML API)
 ```
 
 ## Building from source
@@ -276,7 +305,7 @@ Library dependencies (used as Maven artifacts):
 mvn clean verify
 ```
 
-This compiles, runs all 61 tests, and produces the shaded JAR.
+This compiles, runs all 69 tests, and produces the shaded JAR.
 
 ## License
 
