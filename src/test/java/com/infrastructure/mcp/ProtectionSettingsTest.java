@@ -30,6 +30,7 @@ class ProtectionSettingsTest {
         assertTrue(actions.stream().anyMatch(a -> a.name().equals("email_obfuscation")));
         assertTrue(actions.stream().anyMatch(a -> a.name().equals("server_side_exclude")));
         assertTrue(actions.stream().anyMatch(a -> a.name().equals("hotlink_protection")));
+        assertTrue(actions.stream().anyMatch(a -> a.name().equals("privacy_pass")));
     }
 
     @Test
@@ -37,8 +38,8 @@ class ProtectionSettingsTest {
         var actions = ProtectionSettings.allActions();
         assertTrue(actions.stream().anyMatch(a -> a.name().equals("brotli")));
         assertTrue(actions.stream().anyMatch(a -> a.name().equals("early_hints")));
-        assertTrue(actions.stream().anyMatch(a -> a.name().equals("http2")));
         assertTrue(actions.stream().anyMatch(a -> a.name().equals("http3")));
+        assertTrue(actions.stream().anyMatch(a -> a.name().equals("ip_geolocation")));
     }
 
     @Test
@@ -56,14 +57,21 @@ class ProtectionSettingsTest {
         var actions = ProtectionSettings.allActions();
         assertTrue(actions.stream().anyMatch(a -> a.name().equals("cache_level")));
         assertTrue(actions.stream().anyMatch(a -> a.name().equals("always_online")));
+        assertTrue(actions.stream().anyMatch(a -> a.name().equals("browser_cache_ttl")));
     }
 
     @Test
-    void hstsSettingHasCorrectStructure() {
+    void hstsSettingHasPreload() {
         var actions = ProtectionSettings.allActions();
         var hsts = actions.stream().filter(a -> a.name().equals("security_header")).findFirst();
         assertTrue(hsts.isPresent());
         assertEquals("security_header", hsts.get().settingId());
+        @SuppressWarnings("unchecked")
+        var hstsValue = (java.util.Map<String, Object>) hsts.get().value();
+        @SuppressWarnings("unchecked")
+        var sts = (java.util.Map<String, Object>) hstsValue.get("strict_transport_security");
+        assertEquals(true, sts.get("preload"));
+        assertEquals(31536000, sts.get("max_age"));
     }
 
     @Test
@@ -75,10 +83,42 @@ class ProtectionSettingsTest {
     }
 
     @Test
+    void wafFreeRulesetIsCustomEndpoint() {
+        var actions = ProtectionSettings.allActions();
+        var waf = actions.stream().filter(a -> a.name().equals("waf_free_managed_ruleset")).findFirst();
+        assertTrue(waf.isPresent());
+        assertTrue(waf.get().isCustomEndpoint());
+        assertEquals("WAF", waf.get().category());
+    }
+
+    @Test
+    void managedTransformsIsCustomEndpoint() {
+        var actions = ProtectionSettings.allActions();
+        var mt = actions.stream().filter(a -> a.name().equals("managed_transforms")).findFirst();
+        assertTrue(mt.isPresent());
+        assertTrue(mt.get().isCustomEndpoint());
+    }
+
+    @Test
+    void urlNormalizationIsCustomEndpoint() {
+        var actions = ProtectionSettings.allActions();
+        var un = actions.stream().filter(a -> a.name().equals("url_normalization")).findFirst();
+        assertTrue(un.isPresent());
+        assertTrue(un.get().isCustomEndpoint());
+    }
+
+    @Test
     void eachActionHasCategory() {
         for (var action : ProtectionSettings.allActions()) {
             assertNotNull(action.category(), "Action " + action.name() + " missing category");
             assertFalse(action.category().isBlank());
         }
+    }
+
+    @Test
+    void transformIdsAreNotEmpty() {
+        assertFalse(ProtectionSettings.requestTransformIds().isEmpty());
+        assertFalse(ProtectionSettings.responseTransformIds().isEmpty());
+        assertTrue(ProtectionSettings.responseTransformIds().contains("remove_x-powered-by_header"));
     }
 }
