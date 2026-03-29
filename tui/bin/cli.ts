@@ -25,5 +25,8 @@ const cli = meow(
   }
 );
 
-const initialScreen = cli.flags.setup ? "setup" : "dashboard";
-render(React.createElement(App, { initialScreen }));
+render(React.createElement(App, {
+  initialScreen: cli.flags.setup ? "setup" : undefined,
+  jarFlag: cli.flags.jar,
+  configPath: cli.flags.config,
+}));
