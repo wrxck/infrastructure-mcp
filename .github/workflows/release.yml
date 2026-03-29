@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Install namecheap-mcp dependency
+        run: |
+          git clone https://github.com/wrxck/namecheap-mcp.git /tmp/namecheap-mcp
+          cd /tmp/namecheap-mcp
+          mvn install -DskipTests -q
+
+      - name: Install cloudflare-mcp dependency
+        run: |
+          git clone https://github.com/wrxck/cloudflare-mcp.git /tmp/cloudflare-mcp
+          cd /tmp/cloudflare-mcp
+          mvn install -DskipTests -q
+
+      - name: Build and test
+        run: mvn clean verify
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/infrastructure-mcp-1.0.0.jar
+          generate_release_notes: true
