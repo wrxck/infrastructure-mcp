@@ -13,7 +13,12 @@ public class InfrastructureMcpServer {
 
     private static final Logger log = LoggerFactory.getLogger(InfrastructureMcpServer.class);
     private static final String SERVER_NAME = "infrastructure-mcp";
-    private static final String SERVER_VERSION = "1.0.0";
+    private static final String SERVER_VERSION = resolveVersion();
+
+    private static String resolveVersion() {
+        String v = InfrastructureMcpServer.class.getPackage().getImplementationVersion();
+        return v != null ? v : "dev";
+    }
 
     public static void main(String[] args) {
         for (String arg : args) {

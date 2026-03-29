@@ -32,7 +32,10 @@ final class SetupTui {
     private final PrintStream out;
 
     // Collected config values
+    private String cloudflareAuthType = "global"; // "global" or "token"
     private String cloudflareApiToken = "";
+    private String cloudflareApiKey = "";
+    private String cloudflareEmail = "";
     private String cloudflareAccountId = "";
     private String namecheapApiUser = "";
     private String namecheapApiKey = "";
@@ -101,20 +104,45 @@ final class SetupTui {
         out.println();
         out.println(CYAN + "  Cloudflare API Configuration" + RESET);
         out.println();
-        out.println("  Create an API token at:");
-        out.println("  " + DIM + "https://dash.cloudflare.com/profile/api-tokens" + RESET);
-        out.println();
-        out.println("  Recommended permissions: " + YELLOW + "Zone:Read, DNS:Edit, Zone Settings:Edit" + RESET);
+
+        out.println("  Auth type: " + YELLOW + "[1]" + RESET + " Global API Key  "
+                + YELLOW + "[2]" + RESET + " Scoped API Token");
+        out.println("  " + DIM + "Current: " + (cloudflareAuthType.equals("global") ? "Global API Key" : "Scoped API Token") + RESET);
+        out.print("  " + DIM + "Choose (1/2, enter to keep): " + RESET);
+        String choice = scanner.nextLine().trim();
+        if (choice.equals("1")) cloudflareAuthType = "global";
+        else if (choice.equals("2")) cloudflareAuthType = "token";
+
         out.println();
 
-        cloudflareApiToken = promptField("API Token", cloudflareApiToken, true, true);
+        if (cloudflareAuthType.equals("global")) {
+            out.println("  Using " + GREEN + "Global API Key" + RESET + " authentication");
+            out.println("  " + DIM + "Find your key at: https://dash.cloudflare.com/profile/api-tokens" + RESET);
+            out.println("  " + DIM + "(scroll down to 'Global API Key' and click 'View')" + RESET);
+            out.println();
+            cloudflareApiKey = promptField("Global API Key", cloudflareApiKey, true, true);
+            cloudflareEmail = promptField("Account Email", cloudflareEmail, true, false);
+        } else {
+            out.println("  Using " + GREEN + "Scoped API Token" + RESET + " authentication");
+            out.println("  " + DIM + "Create a token at: https://dash.cloudflare.com/profile/api-tokens" + RESET);
+            out.println("  Permissions: " + YELLOW + "Zone:Read+Edit, DNS:Edit, Zone Settings:Edit" + RESET);
+            out.println();
+            cloudflareApiToken = promptField("API Token", cloudflareApiToken, true, true);
+        }
+
         cloudflareAccountId = promptField("Account ID", cloudflareAccountId, true, false);
 
         out.println();
-        if (!cloudflareApiToken.isEmpty() && !cloudflareAccountId.isEmpty()) {
+        boolean valid;
+        if (cloudflareAuthType.equals("global")) {
+            valid = !cloudflareApiKey.isEmpty() && !cloudflareEmail.isEmpty() && !cloudflareAccountId.isEmpty();
+        } else {
+            valid = !cloudflareApiToken.isEmpty() && !cloudflareAccountId.isEmpty();
+        }
+        if (valid) {
             out.println("  " + GREEN + "  Cloudflare credentials set" + RESET);
         } else {
-            out.println("  " + RED + "  Both fields are required" + RESET);
+            out.println("  " + RED + "  Required fields missing" + RESET);
         }
 
         printDivider();
@@ -179,8 +207,15 @@ final class SetupTui {
         out.println(CYAN + "  Configuration Summary" + RESET);
         out.println();
 
-        printSummaryRow("Cloudflare Token", maskSecret(cloudflareApiToken), !cloudflareApiToken.isEmpty());
-        printSummaryRow("Cloudflare Account", cloudflareAccountId, !cloudflareAccountId.isEmpty());
+        if (cloudflareAuthType.equals("global")) {
+            printSummaryRow("CF Auth Type", "Global API Key", true);
+            printSummaryRow("CF API Key", maskSecret(cloudflareApiKey), !cloudflareApiKey.isEmpty());
+            printSummaryRow("CF Email", cloudflareEmail, !cloudflareEmail.isEmpty());
+        } else {
+            printSummaryRow("CF Auth Type", "Scoped API Token", true);
+            printSummaryRow("CF API Token", maskSecret(cloudflareApiToken), !cloudflareApiToken.isEmpty());
+        }
+        printSummaryRow("CF Account ID", cloudflareAccountId, !cloudflareAccountId.isEmpty());
         printSummaryRow("Namecheap User", namecheapApiUser, !namecheapApiUser.isEmpty());
         printSummaryRow("Namecheap Key", maskSecret(namecheapApiKey), !namecheapApiKey.isEmpty());
         printSummaryRow("Namecheap IP", namecheapClientIp, !namecheapClientIp.isEmpty());
@@ -242,7 +277,12 @@ final class SetupTui {
 
         // Build env map
         var env = new LinkedHashMap<String, String>();
-        env.put("CLOUDFLARE_API_TOKEN", cloudflareApiToken);
+        if (cloudflareAuthType.equals("global")) {
+            env.put("CLOUDFLARE_API_KEY", cloudflareApiKey);
+            env.put("CLOUDFLARE_EMAIL", cloudflareEmail);
+        } else {
+            env.put("CLOUDFLARE_API_TOKEN", cloudflareApiToken);
+        }
         env.put("CLOUDFLARE_ACCOUNT_ID", cloudflareAccountId);
         env.put("NAMECHEAP_API_USER", namecheapApiUser);
         env.put("NAMECHEAP_API_KEY", namecheapApiKey);
@@ -431,7 +471,13 @@ final class SetupTui {
     }
 
     boolean isConfigValid() {
-        return !cloudflareApiToken.isEmpty()
+        boolean cfValid;
+        if (cloudflareAuthType.equals("global")) {
+            cfValid = !cloudflareApiKey.isEmpty() && !cloudflareEmail.isEmpty();
+        } else {
+            cfValid = !cloudflareApiToken.isEmpty();
+        }
+        return cfValid
                 && !cloudflareAccountId.isEmpty()
                 && !namecheapApiUser.isEmpty()
                 && !namecheapApiKey.isEmpty()
@@ -446,7 +492,8 @@ final class SetupTui {
             }
         } catch (Exception ignored) {}
         if (jarPath.isEmpty()) {
-            jarPath = "infrastructure-mcp-1.0.0.jar";
+            String version = SetupTui.class.getPackage().getImplementationVersion();
+            jarPath = "infrastructure-mcp-" + (version != null ? version : "1.1.1") + ".jar";
         }
     }
 
@@ -461,8 +508,15 @@ final class SetupTui {
     String getFleetBinary() { return fleetBinary; }
     String getClaudeBinary() { return claudeBinary; }
 
+    String getCloudflareAuthType() { return cloudflareAuthType; }
+    String getCloudflareApiKey() { return cloudflareApiKey; }
+    String getCloudflareEmail() { return cloudflareEmail; }
+
     // Setters for testing
+    void setCloudflareAuthType(String v) { cloudflareAuthType = v; }
     void setCloudflareApiToken(String v) { cloudflareApiToken = v; }
+    void setCloudflareApiKey(String v) { cloudflareApiKey = v; }
+    void setCloudflareEmail(String v) { cloudflareEmail = v; }
     void setCloudflareAccountId(String v) { cloudflareAccountId = v; }
     void setNamecheapApiUser(String v) { namecheapApiUser = v; }
     void setNamecheapApiKey(String v) { namecheapApiKey = v; }

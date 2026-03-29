@@ -26,8 +26,15 @@ final class InfrastructureTools {
 
     InfrastructureTools(ServerConfig config) {
         var cfLimiter = new com.cloudflare.mcp.RateLimiter(240);
-        this.cloudflare = new CloudflareRestClient(
-                config.cloudflareApiToken(), config.cloudflareAccountId(), cfLimiter);
+
+        com.cloudflare.mcp.CloudflareAuth cfAuth;
+        if (config.isApiTokenAuth()) {
+            cfAuth = com.cloudflare.mcp.CloudflareAuth.apiToken(config.cloudflareApiToken());
+        } else {
+            cfAuth = com.cloudflare.mcp.CloudflareAuth.globalApiKey(
+                    config.cloudflareApiKey(), config.cloudflareEmail());
+        }
+        this.cloudflare = new CloudflareRestClient(cfAuth, config.cloudflareAccountId(), cfLimiter);
 
         var ncLimiter = new com.namecheap.mcp.RateLimiter(20, 700);
         this.namecheap = new NamecheapClient(
