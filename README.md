@@ -30,6 +30,16 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
    + fleet CLI       api.namecheap.com      api.cloudflare.com
 ```
 
+## Why this exists
+
+Managing infrastructure across multiple providers means context-switching between dashboards, remembering different APIs, and running through the same checklist every time you onboard a domain. I built this to collapse that workflow into a single conversation.
+
+The key insight is that MCP gives you **implicit security through human-in-the-loop approval**. When Claude calls `onboard_domain`, it doesn't silently execute — it shows you exactly what it's about to do and waits for confirmation. Destructive tools (DNS migration, nameserver changes, protection settings) are annotated with `destructiveHint: true`, so the client knows to gate them behind explicit approval. Read-only tools (`list_zones`, `get_dns`) are marked `readOnlyHint: true` and can run freely for information gathering.
+
+This means you get the speed of automation with the safety of manual review. The LLM handles the tedious orchestration (fetching records from Namecheap, converting formats, creating them in Cloudflare, updating nameservers) while you retain veto power over every mutating action. No YAML pipelines, no CI/CD complexity, no "I hope this script does what I think it does" — just a conversation where you can ask questions, adjust parameters, and confirm each step.
+
+The other security layer is **content sanitization**. DNS records are attacker-controlled data — a TXT record could contain prompt injection attempts. Every piece of untrusted content returned by read tools is wrapped in cryptographic boundary markers with instructions to treat it as opaque data. This prevents a malicious DNS record from hijacking the conversation.
+
 ## Features
 
 - **Domain onboarding** — single command to create a Cloudflare zone, migrate DNS records from Namecheap, update nameservers, and apply 25+ security/performance settings
@@ -102,9 +112,19 @@ mvn clean package
 
 This produces `target/infrastructure-mcp-1.0.0.jar` — a self-contained executable JAR (18 MB).
 
-### 2. Configure
+### 2. Setup (interactive)
 
-Set the required environment variables:
+Run the built-in setup wizard — it walks you through entering credentials and registers with Claude Code automatically:
+
+```bash
+java -jar target/infrastructure-mcp-1.0.0.jar --setup
+```
+
+The wizard has 5 pages: Welcome, Cloudflare, Namecheap, Fleet, and Summary. Navigate with `enter` (next), `b` (back), and `q` (quit). Secrets are masked in the summary.
+
+### 2b. Manual configuration (alternative)
+
+If you prefer to configure manually, set the required environment variables:
 
 ```bash
 export CLOUDFLARE_API_TOKEN='your-cloudflare-api-token'
@@ -242,7 +262,8 @@ src/main/java/com/infrastructure/mcp/
 ├── ProtectionSettings.java       # Cloudflare security/performance settings
 ├── ResultHelper.java             # Tool result builders and parameter extraction
 ├── ContentSanitizer.java         # Prompt injection defense
-└── RateLimiter.java              # Sliding window rate limiter
+├── RateLimiter.java              # Sliding window rate limiter
+└── SetupTui.java                 # Interactive paginated setup wizard
 
 Library dependencies (used as Maven artifacts):
 ├── cloudflare-mcp                # CloudflareRestClient — typed Cloudflare API v4 client
@@ -255,7 +276,7 @@ Library dependencies (used as Maven artifacts):
 mvn clean verify
 ```
 
-This compiles, runs all 39 tests, and produces the shaded JAR.
+This compiles, runs all 61 tests, and produces the shaded JAR.
 
 ## License
 
