@@ -1,10 +1,13 @@
 # Infrastructure MCP Server
 
-A unified [Model Context Protocol](https://modelcontextprotocol.io) server that orchestrates **Cloudflare**, **Namecheap**, and **Fleet** from a single interface. Built in Java 21 with the MCP SDK 1.0.0.
+A unified [Model Context Protocol](https://modelcontextprotocol.io) server and interactive terminal UI that orchestrates **Cloudflare**, **Namecheap**, and **Fleet** from a single interface. Built in Java 21 + TypeScript/Ink.
+
+## Two ways to use it
+
+- **With AI** — 12 MCP tools for Claude Code or any MCP-compatible client
+- **Without AI** — interactive terminal UI with dashboard, wizards, and auditing
 
 ## What it does
-
-Infrastructure MCP gives AI assistants (Claude Code, etc.) the tools to manage your entire domain infrastructure:
 
 - **Onboard domains** to Cloudflare with one command — creates zone, migrates DNS from Namecheap, updates nameservers, and applies 30+ security/performance settings
 - **Query DNS** across both Cloudflare and Namecheap
@@ -14,14 +17,14 @@ Infrastructure MCP gives AI assistants (Claude Code, etc.) the tools to manage y
 ## Quick start
 
 ```bash
-# Build
+# Build MCP server
 mvn clean package
 
-# Run (credentials via env vars)
-java -jar target/infrastructure-mcp-1.1.2.jar
+# Option A: Use with Claude Code
+java -jar target/infrastructure-mcp-*.jar --setup
 
-# Or install into Claude Code
-java -jar target/infrastructure-mcp-1.1.2.jar --setup
+# Option B: Use the interactive TUI
+cd tui && npm install && npm start -- --setup
 ```
 
 See [Installation](getting-started/installation.md) for full setup instructions.
@@ -46,16 +49,18 @@ See [Installation](getting-started/installation.md) for full setup instructions.
 ## Architecture
 
 ```
-Claude Code / AI Assistant
-        │
-        ▼
-  Infrastructure MCP Server (Java 21, MCP SDK 1.0.0)
-        │
-        ├── Cloudflare API v4 (zones, DNS, settings, rulesets, transforms)
-        ├── Namecheap API (domains, DNS, nameservers)
-        └── Fleet CLI (apps, domains, nginx)
+Claude Code / AI Assistant ──┐
+                              ├──stdio──> Infrastructure MCP Server (Java 21)
+Terminal UI (Ink/React) ──────┘                    │
+                                    ├── Cloudflare API v4
+                                    ├── Namecheap API
+                                    └── Fleet CLI
 ```
+
+Both the AI client and TUI communicate with the same Java MCP server over stdio. All business logic lives in one place — the TUI is a thin presentation layer with zero API duplication.
 
 ## Version
 
-Current release: **v1.1.2**
+Current release: **v1.2.0** — [Changelog](reference/changelog.md)
+
+126 tests (73 Java + 53 TypeScript)

@@ -1,6 +1,6 @@
 # Protection Settings
 
-The `apply_protection` step configures 30+ Cloudflare settings optimized for the free plan.
+The `apply_protection` step configures ~30 Cloudflare settings optimized for the free plan. This includes zone settings, WAF rulesets, bot management, managed transforms, DNSSEC, and URL normalization.
 
 ## SSL/TLS
 
@@ -9,7 +9,7 @@ The `apply_protection` step configures 30+ Cloudflare settings optimized for the
 | `ssl` | `strict` | Full (strict) SSL — validates origin certificate |
 | `always_use_https` | `on` | 301 redirect all HTTP to HTTPS |
 | `automatic_https_rewrites` | `on` | Rewrite `http://` links in page content to `https://` |
-| `tls_1_3` | `on` | Enable TLS 1.3 |
+| `tls_1_3` | `on` | Enable TLS 1.3 (Cloudflare may upgrade to `zrt` when 0-RTT is also enabled) |
 | `min_tls_version` | `1.2` | Reject connections below TLS 1.2 |
 | `security_header` (HSTS) | See below | HTTP Strict Transport Security |
 
@@ -35,7 +35,7 @@ The `apply_protection` step configures 30+ Cloudflare settings optimized for the
 
 | Setting | Value | Effect |
 |---------|-------|--------|
-| `security_level` | `medium` | Challenge suspicious visitors |
+| `security_level` | `medium` | Challenge suspicious visitors via Cloudflare threat score |
 | `browser_check` | `on` | Block requests with missing/suspicious User-Agent |
 | `challenge_ttl` | `1800` | Challenge solutions valid for 30 minutes |
 | `email_obfuscation` | `on` | Hide email addresses from scrapers |
@@ -45,57 +45,86 @@ The `apply_protection` step configures 30+ Cloudflare settings optimized for the
 
 ## WAF & Bot Protection
 
-| Feature | Method | Effect |
-|---------|--------|--------|
-| Bot Fight Mode | API: `PUT /bot_management` | Challenge known bot traffic |
-| Free WAF Managed Ruleset | Ruleset deployment | Cloudflare's free managed WAF rules |
-| DDoS Protection | Always-on | HTTP and network-layer DDoS mitigation |
+| Feature | API | Effect |
+|---------|-----|--------|
+| Bot Fight Mode | `PUT /zones/{id}/bot_management` | JS challenge for known bots, AI bot blocking enabled |
+| Free WAF Managed Ruleset | Ruleset API (auto-discovered) | Cloudflare's curated WAF rules for common vulnerabilities |
+| DDoS Protection | Always-on | Automatic L3/L4/L7 DDoS mitigation (no API call needed) |
 
-The Free WAF Managed Ruleset is automatically discovered from account rulesets and deployed to the `http_request_firewall_managed` phase.
+**Bot Fight Mode** is configured with three features enabled:
 
-## Managed Transforms
+- `fight_mode: true` — challenges known bot traffic with JS challenge
+- `enable_js: true` — injects JS detection snippet (required for fight mode)
+- `ai_bots_protection: block` — blocks AI scrapers (GPTBot, CCBot, etc.)
 
-| Transform | Direction | Effect |
-|-----------|-----------|--------|
-| `add_visitor_location_headers` | Request | Adds `CF-IPCountry`, latitude/longitude headers to origin |
-| `remove_x-powered-by_header` | Response | Strips `X-Powered-By` header from responses |
-| `add_security_headers` | Response | Adds security headers (CSP, X-Frame-Options, etc.) |
-
-## Speed & Optimization
-
-| Setting | Value | Effect |
-|---------|-------|--------|
-| `minify` | `js: on, css: on, html: on` | Minify JS, CSS, and HTML |
-| `brotli` | `on` | Brotli compression |
-| `early_hints` | `on` | HTTP 103 Early Hints for preloading |
-| `http3` | `on` | HTTP/3 with QUIC |
-| `ip_geolocation` | `on` | Add `CF-IPCountry` header |
-
-!!! note
-    `http2` is always enabled for proxied zones on all plans and cannot be toggled via API.
-
-## Caching
-
-| Setting | Value | Effect |
-|---------|-------|--------|
-| `cache_level` | `aggressive` | Cache static content ignoring query strings |
-| `browser_cache_ttl` | `14400` | Browser cache: 4 hours |
-| `always_online` | `on` | Serve stale cache if origin is down |
-
-## Network
-
-| Setting | Value | Effect |
-|---------|-------|--------|
-| `ipv6` | `on` | IPv6 on proxied records |
-| `websockets` | `on` | WebSocket proxying |
-| `opportunistic_encryption` | `on` | Advertise HTTPS over Alt-Svc |
-| `opportunistic_onion` | `on` | Tor .onion routing |
-| `0rtt` | `on` | TLS 1.3 0-RTT session resumption |
-| URL Normalization | `cloudflare` type, `incoming` scope | Normalize URL paths |
+**Free WAF Managed Ruleset** is auto-discovered from account-level rulesets by matching `kind: managed` and `phase: http_request_firewall_managed`, then deployed to the zone. This avoids hardcoding the ruleset ID.
 
 ## DNSSEC
 
 DNSSEC is enabled via `PATCH /zones/{zone_id}/dnssec` with `{"status": "active"}`.
 
-!!! info "DS record"
-    After enabling DNSSEC, Cloudflare provides a DS record that should be added at the registrar. For Namecheap domains, this is handled automatically during nameserver migration.
+!!! warning "DS record required"
+    After enabling DNSSEC, you must add the DS record at your domain registrar. Cloudflare provides the DS record details in the dashboard under **DNS > Settings > DNSSEC**. This step cannot be automated via the Namecheap API — it must be done manually or will take effect once Cloudflare is the authoritative DNS.
+
+## Managed Transforms
+
+These are pre-built Cloudflare header transformations enabled via `PATCH /zones/{id}/managed_headers`.
+
+| Transform | Direction | Effect |
+|-----------|-----------|--------|
+| `add_visitor_location_headers` | Request | Adds `CF-IPCountry`, latitude/longitude headers to origin |
+| `remove_x-powered-by_header` | Response | Strips `X-Powered-By` header (hides server technology) |
+| `add_security_headers` | Response | Adds security headers (X-Content-Type-Options, X-Frame-Options, etc.) |
+
+## Speed & Optimization
+
+| Setting | Value | Effect |
+|---------|-------|--------|
+| `brotli` | `on` | Brotli compression for smaller responses |
+| `early_hints` | `on` | HTTP 103 Early Hints for preloading assets |
+| `http3` | `on` | HTTP/3 with QUIC for faster connections |
+| `ip_geolocation` | `on` | Adds `CF-IPCountry` header to all requests |
+
+!!! note
+    `http2` is always enabled for proxied zones on all plans and cannot be toggled via API. `minify` (Auto Minify) has been deprecated by Cloudflare — the API accepts the setting but it no longer takes effect.
+
+## Caching
+
+| Setting | Value | Effect |
+|---------|-------|--------|
+| `cache_level` | `aggressive` | Cache static content, ignore query strings |
+| `browser_cache_ttl` | `14400` | Browser cache TTL: 4 hours |
+| `always_online` | `on` | Serve cached version from Internet Archive if origin is down |
+
+## Network
+
+| Setting | Value | Effect |
+|---------|-------|--------|
+| `ipv6` | `on` | IPv6 support on proxied records |
+| `websockets` | `on` | WebSocket proxying to origin |
+| `opportunistic_encryption` | `on` | Advertise HTTPS via Alt-Svc header |
+| `opportunistic_onion` | `on` | Cloudflare .onion service for Tor users |
+| `0rtt` | `on` | TLS 1.3 0-RTT session resumption (reduces latency) |
+
+## URL Normalization
+
+Enabled via `PUT /zones/{id}/url_normalization` with `{"type": "cloudflare", "scope": "incoming"}`.
+
+Normalizes incoming URL paths to a canonical form, preventing cache poisoning via URL encoding tricks (e.g., `/path/../other` or `/%2e%2e/other`).
+
+## Summary
+
+| Category | Count | Method |
+|----------|-------|--------|
+| SSL/TLS zone settings | 6 | `PATCH /settings/{id}` |
+| Security zone settings | 7 | `PATCH /settings/{id}` |
+| Speed zone settings | 4 | `PATCH /settings/{id}` |
+| Caching zone settings | 3 | `PATCH /settings/{id}` |
+| Network zone settings | 5 | `PATCH /settings/{id}` |
+| Bot Fight Mode | 1 | `PUT /bot_management` |
+| WAF Managed Ruleset | 1 | `PUT /rulesets/phases/.../entrypoint` |
+| DDoS Protection | 1 | Always-on (no API call) |
+| DNSSEC | 1 | `PATCH /dnssec` |
+| Managed Transforms | 3 | `PATCH /managed_headers` |
+| URL Normalization | 1 | `PUT /url_normalization` |
+| **Total** | **~33** | |

@@ -2,46 +2,97 @@
 
 [![CI](https://github.com/wrxck/infrastructure-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/wrxck/infrastructure-mcp/actions/workflows/ci.yml)
 [![Java 21](https://img.shields.io/badge/Java-21-blue)](https://openjdk.org/projects/jdk/21/)
+[![Node 20](https://img.shields.io/badge/Node-20-339933)](https://nodejs.org/)
 [![MCP SDK](https://img.shields.io/badge/MCP_SDK-1.0.0-green)](https://modelcontextprotocol.io/)
+[![Tests](https://img.shields.io/badge/tests-126_passing-brightgreen)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-infrastructure--mcp.hesketh.pro-purple)](https://infrastructure-mcp.hesketh.pro)
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that orchestrates **Cloudflare**, **Namecheap**, and **Fleet** from a single interface. One command to onboard a domain — zone creation, DNS migration, nameserver cutover, and **30+ security hardening settings** applied automatically. All free-tier compatible.
+An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server and interactive terminal UI that orchestrates **Cloudflare**, **Namecheap**, and **Fleet** from a single interface. One command to onboard a domain — zone creation, DNS migration, nameserver cutover, and **30+ security hardening settings** applied automatically. All free-tier compatible.
 
-## What happens when you say "onboard example.com"
+**Two ways to use it:**
+
+- **With AI** — 12 MCP tools for Claude Code or any MCP-compatible LLM client
+- **Without AI** — interactive terminal UI (Ink/React) with dashboard, wizards, and auditing
+
+## What happens when you onboard a domain
 
 ```
-1. Creates Cloudflare zone                         ✓ Zone created
-2. Fetches all DNS records from Namecheap           ✓ 16 records found
-3. Migrates records to Cloudflare (with retry)      ✓ 16/16 migrated
-4. Updates nameservers at Namecheap                 ✓ NS switched
+1. Creates Cloudflare zone                         OK  Zone created
+2. Fetches all DNS records from Namecheap          OK  16 records found
+3. Migrates records to Cloudflare (with retry)     OK  16/16 migrated
+4. Updates nameservers at Namecheap                OK  NS switched
 5. Applies 30+ protection settings:
-   ├── SSL strict + HSTS preload (1 year)           ✓ SSL/TLS hardened
-   ├── TLS 1.3 + 0-RTT + min TLS 1.2               ✓ Transport secured
-   ├── Bot Fight Mode + JS detection + AI blocking  ✓ Bots blocked
-   ├── Free WAF Managed Ruleset deployed            ✓ WAF active
-   ├── DNSSEC enabled                               ✓ DNS authenticated
-   ├── Managed transforms (strip X-Powered-By,      ✓ Headers hardened
-   │   add security headers, visitor geolocation)
-   ├── URL normalization                            ✓ Path canonicalized
-   ├── Brotli + HTTP/3 + Early Hints                ✓ Speed optimized
-   └── Aggressive caching + 4hr browser TTL         ✓ Cache configured
-                                          Total: ~30 settings in <60 seconds
+   |-- SSL strict + HSTS preload (1 year)          OK  SSL/TLS hardened
+   |-- TLS 1.3 + 0-RTT + min TLS 1.2              OK  Transport secured
+   |-- Bot Fight Mode + JS detection + AI blocking OK  Bots blocked
+   |-- Free WAF Managed Ruleset deployed           OK  WAF active
+   |-- DNSSEC enabled                              OK  DNS authenticated
+   |-- Managed transforms (strip X-Powered-By,     OK  Headers hardened
+   |   add security headers, visitor geolocation)
+   |-- URL normalization                           OK  Path canonicalized
+   |-- Brotli + HTTP/3 + Early Hints               OK  Speed optimized
+   '-- Aggressive caching + 4hr browser TTL        OK  Cache configured
+                                         Total: ~30 settings in <60 seconds
 ```
 
 Every free-tier Cloudflare feature that improves security or performance — enabled, configured, and verified. No dashboard clicking, no missed settings, no "I'll do DNSSEC later."
+
+## Interactive TUI
+
+Don't want to use an AI agent? The TUI gives you the same capabilities in a keyboard-driven terminal interface.
+
+```
+infrastructure-tui
+
+ Infrastructure MCP v1.2.0                          q quit  s settings  ? help
+---------------------------------------------------------------------
+
+ Cloudflare Zones
+ +---------------------------+----------+----------+------------+----------+
+ | Domain                    | Status   | Records  | Protection | SSL      |
+ +---------------------------+----------+----------+------------+----------+
+ | matthesketh.pro           | * active | 16       | all ok     | strict   |
+ | abmanandvan.co.uk         | * active | 3        | all ok     | strict   |
+ | hostclaw.app              | * active | 4        | all ok     | strict   |
+ +---------------------------+----------+----------+------------+----------+
+
+ Fleet Apps
+   8 root domains, 19 total endpoints
+
+ up/dn select   Enter details   o onboard   a audit all   r refresh
+```
+
+**Features:**
+- Dashboard-first interface — see all zones and Fleet apps at a glance
+- Domain onboarding wizard with confirmation before destructive actions
+- Zone detail view with DNS records and full protection audit
+- Bulk protection audit across all zones
+- Setup wizard that adapts to your experience level — encourages source code review for learners
+
+**Installation:**
+```bash
+cd tui && npm install && npm start
+```
+
+Or with the `--setup` flag to configure credentials:
+```bash
+npm start -- --setup
+```
 
 ## How it works
 
 ```mermaid
 graph TD
-    Client[Claude Code / LLM Client]
-    Client -->|stdio| Server
+    AI[Claude Code / LLM Client]
+    TUI[Terminal UI - Ink/React]
+    AI -->|MCP stdio| Server
+    TUI -->|MCP stdio| Server
 
-    subgraph Server[Infrastructure MCP Server — 12 tools]
-        Fleet[Fleet Client<br><i>registry.json + CLI</i>]
-        Namecheap[Namecheap Client<br><i>XML API</i>]
-        Cloudflare[Cloudflare REST Client<br><i>API v4 — zones, DNS, settings,<br>rulesets, bot mgmt, transforms</i>]
+    subgraph Server[Infrastructure MCP Server - Java 21]
+        Fleet[Fleet Client]
+        Namecheap[Namecheap Client]
+        Cloudflare[Cloudflare REST Client]
     end
 
     Fleet --> FleetAPI[Fleet Registry + CLI]
@@ -49,13 +100,17 @@ graph TD
     Cloudflare --> CFAPI[api.cloudflare.com]
 ```
 
+The TUI and AI clients both communicate with the same Java MCP server over stdio. All business logic — API calls, rate limiting, retry logic, credential handling — lives in the server. The TUI is a thin presentation layer with zero API duplication.
+
 ## Why this exists
 
-Managing infrastructure across multiple providers means context-switching between dashboards, remembering different APIs, and running through the same checklist every time you onboard a domain. This server collapses that workflow into a single conversation.
+Managing infrastructure across multiple providers means context-switching between dashboards, remembering different APIs, and running through the same checklist every time you onboard a domain. This project collapses that workflow into either a conversation or a terminal interface.
 
-MCP gives you **implicit security through human-in-the-loop approval**. When the LLM calls `onboard_domain`, it shows you exactly what it's about to do and waits for confirmation. Destructive tools are annotated with `destructiveHint: true`, so the client gates them behind explicit approval. Read-only tools run freely for information gathering. You get the speed of automation with the safety of manual review.
+**For AI usage:** MCP gives you implicit security through human-in-the-loop approval. Destructive tools are annotated with `destructiveHint: true`, so the client gates them behind explicit approval.
 
-The other security layer is **content sanitization**. DNS records are attacker-controlled data — a TXT record could contain prompt injection attempts. Every piece of untrusted content is wrapped in cryptographic boundary markers with instructions to treat it as opaque data.
+**For TUI usage:** Every destructive action requires y/n confirmation. The setup wizard encourages users to review the source code before entering credentials.
+
+**For both:** Content sanitization wraps untrusted DNS data in boundary markers to prevent prompt injection.
 
 ## Full protection suite
 
@@ -119,7 +174,7 @@ Every setting below is applied automatically during onboarding. All are Cloudfla
 | Onion Routing | On | Cloudflare .onion service for Tor users |
 | 0-RTT | On | TLS session resumption without round trip |
 
-## Tools
+## MCP Tools
 
 ### Fleet
 | Tool | Type | Description |
@@ -151,6 +206,12 @@ Every setting below is applied automatically during onboarding. All are Cloudfla
 
 ## Quick start
 
+### Prerequisites
+
+- **Java 21+** (for the MCP server)
+- **Node 20+** (for the TUI, optional)
+- **Maven 3.9+** (build only)
+
 ### 1. Build
 
 ```bash
@@ -164,28 +225,37 @@ cd /tmp/namecheap-mcp && mvn install -DskipTests -q && cd -
 git clone https://github.com/wrxck/cloudflare-mcp.git /tmp/cloudflare-mcp
 cd /tmp/cloudflare-mcp && mvn install -DskipTests -q && cd -
 
-# Build
+# Build MCP server
 mvn clean package
+
+# Build TUI (optional)
+cd tui && npm install && cd ..
 ```
 
 ### 2. Setup
 
-**Interactive** (recommended):
+**Option A: Interactive TUI setup** (recommended for new users)
+
+```bash
+cd tui && npm start -- --setup
+```
+
+The wizard adapts to your experience level and guides you through entering credentials.
+
+**Option B: MCP server setup wizard**
 
 ```bash
 java -jar target/infrastructure-mcp-*.jar --setup
 ```
 
-Walks you through entering credentials across 5 pages: Welcome, Cloudflare, Namecheap, Fleet, Summary.
-
-**Manual** — add to `~/.claude.json`:
+**Option C: Manual** — add to `~/.claude.json`:
 
 ```json
 {
   "mcpServers": {
     "infrastructure-mcp": {
       "command": "java",
-      "args": ["-jar", "/path/to/infrastructure-mcp-1.1.2.jar"],
+      "args": ["-jar", "/path/to/infrastructure-mcp-1.2.0.jar"],
       "env": {
         "CLOUDFLARE_API_KEY": "your-global-api-key",
         "CLOUDFLARE_EMAIL": "your-cloudflare-email",
@@ -201,11 +271,16 @@ Walks you through entering credentials across 5 pages: Welcome, Cloudflare, Name
 
 ### 3. Use
 
+**With AI (Claude Code):**
 ```
 > Onboard example.com to Cloudflare with full protection
 > List all my Cloudflare zones and check their protection status
 > Migrate DNS from Namecheap to Cloudflare for example.co.uk
-> Show me all Fleet apps and their domains
+```
+
+**With TUI:**
+```bash
+cd tui && npm start
 ```
 
 ## DNS migration
@@ -246,24 +321,37 @@ If both are set, Global API Key takes priority.
 
 \* Provide either `CLOUDFLARE_API_KEY` + `CLOUDFLARE_EMAIL` **or** `CLOUDFLARE_API_TOKEN`.
 
+### TUI configuration
+
+The TUI loads config from `~/.infrastructure-mcp.json` first, falling back to `~/.claude.json`. Config files are written with `0600` permissions (owner read/write only).
+
 ## Security
 
-- **Content sanitization** — DNS record data is wrapped in cryptographic boundary markers to prevent prompt injection via malicious DNS records
+- **Config file permissions** — `~/.infrastructure-mcp.json` is written with mode `0600` to protect credentials
+- **Content sanitization** — DNS record data is wrapped in boundary markers to prevent prompt injection
 - **Rate limiting** — sliding window rate limiters enforce Cloudflare (240/min) and Namecheap (20/min) API limits
-- **Human-in-the-loop** — destructive tools annotated with `destructiveHint: true` for client-side approval gates
-- **No credentials in output** — API tokens are never included in tool responses
+- **Human-in-the-loop** — destructive tools annotated with `destructiveHint: true`; TUI requires y/n confirmation
+- **Process cleanup** — TUI kills the Java subprocess on SIGINT/SIGTERM/exit to prevent orphan processes
+- **JAR validation** — TUI validates the JAR path before spawning the subprocess
+- **Domain validation** — onboard wizard validates domain format before submission
+- **No credentials in output** — API tokens are never included in tool responses or console output
+- **Source code review** — setup wizard encourages users to review the code before entering credentials
 
 ## Documentation
 
 Full documentation: [infrastructure-mcp.hesketh.pro](https://infrastructure-mcp.hesketh.pro)
 
-## Building from source
+## Building and testing
 
 ```bash
-mvn clean verify
+# MCP server (Java)
+mvn clean verify              # 73 tests
+
+# TUI (TypeScript)
+cd tui && npm test            # 53 tests
 ```
 
-Compiles, runs all 73 tests, and produces the shaded JAR.
+Total: 126 tests across both components.
 
 ## License
 
