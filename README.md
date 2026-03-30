@@ -1,6 +1,7 @@
 # Infrastructure MCP Server
 
 [![CI](https://github.com/wrxck/infrastructure-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/wrxck/infrastructure-mcp/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/infrastructure-tui)](https://www.npmjs.com/package/infrastructure-tui)
 [![Java 21](https://img.shields.io/badge/Java-21-blue)](https://openjdk.org/projects/jdk/21/)
 [![Node 20](https://img.shields.io/badge/Node-20-339933)](https://nodejs.org/)
 [![MCP SDK](https://img.shields.io/badge/MCP_SDK-1.0.0-green)](https://modelcontextprotocol.io/)
@@ -70,14 +71,25 @@ infrastructure-tui
 - Bulk protection audit across all zones
 - Setup wizard that adapts to your experience level — encourages source code review for learners
 
-**Installation:**
+**Install from npm:**
+```bash
+npx infrastructure-tui
+```
+
+Or install globally:
+```bash
+npm install -g infrastructure-tui
+infrastructure-tui
+```
+
+**From source:**
 ```bash
 cd tui && npm install && npm start
 ```
 
-Or with the `--setup` flag to configure credentials:
+First run? Add `--setup` to configure credentials:
 ```bash
-npm start -- --setup
+npx infrastructure-tui --setup
 ```
 
 ## How it works
@@ -237,7 +249,7 @@ cd tui && npm install && cd ..
 **Option A: Interactive TUI setup** (recommended for new users)
 
 ```bash
-cd tui && npm start -- --setup
+npx infrastructure-tui --setup
 ```
 
 The wizard adapts to your experience level and guides you through entering credentials.
@@ -280,7 +292,7 @@ java -jar target/infrastructure-mcp-*.jar --setup
 
 **With TUI:**
 ```bash
-cd tui && npm start
+npx infrastructure-tui
 ```
 
 ## DNS migration
