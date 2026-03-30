@@ -1,8 +1,6 @@
-import React from "react";
 import { Box, Text } from "ink";
 import InkSpinner from "ink-spinner";
-
-interface SpinnerProps { label: string; }
+import { SpinnerProps } from "../types/index.js";
 
 export default function Spinner({ label }: SpinnerProps) {
   return (

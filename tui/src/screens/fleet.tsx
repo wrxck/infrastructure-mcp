@@ -1,21 +1,11 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { useMcp } from "../hooks/use-mcp.js";
 import Table from "../components/table.js";
 import Header from "../components/header.js";
 import KeyHint from "../components/key-hint.js";
 import Spinner from "../components/spinner.js";
-
-interface FleetApp {
-  name: string;
-  domain?: string;
-  status?: string;
-  [key: string]: unknown;
-}
-
-interface FleetProps {
-  onBack: () => void;
-}
+import { FleetApp, FleetProps } from "../types/index.js";
 
 const APP_COLUMNS = [
   { key: "name", header: "Name" },
@@ -25,6 +15,7 @@ const APP_COLUMNS = [
 
 export default function Fleet({ onBack }: FleetProps) {
   const { callTool } = useMcp();
+
   const [apps, setApps] = useState<FleetApp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,14 +24,17 @@ export default function Fleet({ onBack }: FleetProps) {
     async function fetch() {
       setLoading(true);
       setError(null);
+
       try {
         const result = await callTool("fleet_list_apps");
+
         if (result.isError) {
           setError(result.content);
           return;
         }
         try {
           const parsed = JSON.parse(result.content);
+
           setApps(Array.isArray(parsed) ? parsed : []);
         } catch {
           setApps([]);
@@ -55,7 +49,9 @@ export default function Fleet({ onBack }: FleetProps) {
   }, []);
 
   useInput((_input, key) => {
-    if (key.escape) onBack();
+    if (key.escape) {
+      onBack();
+    }
   });
 
   const rows = apps.map(app => ({

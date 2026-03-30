@@ -1,15 +1,8 @@
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-
-export interface TuiConfig {
-  jarPath: string;
-  env: Record<string, string>;
-  experienceLevel: "learner" | "comfortable" | "professional";
-}
-
-const OWN_CONFIG_FILENAME = ".infrastructure-mcp.json";
-const CLAUDE_CONFIG_FILENAME = ".claude.json";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { CLAUDE_CONFIG_FILENAME, OWN_CONFIG_FILENAME } from "./constants/index.js";
+import { TuiConfig } from "./types/index.js";
 
 function ownConfigPath(configPath?: string): string {
   return configPath ?? path.join(os.homedir(), OWN_CONFIG_FILENAME);
@@ -24,6 +17,7 @@ export function loadConfig(configPath?: string): TuiConfig | null {
   try {
     const ownPath = ownConfigPath(configPath);
     const raw = fs.readFileSync(ownPath, "utf-8");
+
     return JSON.parse(raw) as TuiConfig;
   } catch {
     // fall through to claude.json fallback
@@ -35,12 +29,14 @@ export function loadConfig(configPath?: string): TuiConfig | null {
     const raw = fs.readFileSync(claudePath, "utf-8");
     const claude = JSON.parse(raw);
     const server = claude?.mcpServers?.["infrastructure-mcp"];
-    if (!server) return null;
+
+    if (!server) {
+      return null;
+    }
 
     const args: string[] = server.args ?? [];
     const jarIndex = args.indexOf("-jar");
     const jarPath = jarIndex !== -1 ? args[jarIndex + 1] : "";
-
     const env: Record<string, string> = server.env ?? {};
 
     return {
@@ -57,6 +53,7 @@ export function loadConfig(configPath?: string): TuiConfig | null {
 
 export function saveConfig(config: TuiConfig, configPath?: string): void {
   const targetPath = ownConfigPath(configPath);
+
   fs.writeFileSync(targetPath, JSON.stringify(config, null, 2), {
     encoding: "utf-8",
     mode: 0o600,
@@ -66,16 +63,26 @@ export function saveConfig(config: TuiConfig, configPath?: string): void {
 }
 
 export function maskSecret(value: string): string {
-  if (value.length === 0) return "";
-  if (value.length < 8) return "•".repeat(value.length);
+  if (value.length === 0) {
+    return "";
+  }
+
+  if (value.length < 8) {
+    return "•".repeat(value.length);
+  }
+
   const visible = value.slice(-4);
   const masked = "•".repeat(value.length - 4);
+
   return masked + visible;
 }
 
 export function findJar(explicit?: string): string | null {
   if (explicit !== undefined) {
-    if (fs.existsSync(explicit)) return explicit;
+    if (fs.existsSync(explicit)) {
+      return explicit;
+    }
+
     return null;
   }
 
@@ -85,9 +92,13 @@ export function findJar(explicit?: string): string | null {
   ];
 
   for (const dir of searchDirs) {
-    if (!fs.existsSync(dir)) continue;
+    if (!fs.existsSync(dir)) {
+      continue;
+    }
+
     try {
       const entries = fs.readdirSync(dir) as string[];
+
       for (const entry of entries) {
         if (
           entry.startsWith("infrastructure-mcp-") &&

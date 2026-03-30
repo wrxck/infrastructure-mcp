@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { loadConfig, saveConfig, type TuiConfig } from "../config.js";
+import { loadConfig, saveConfig } from "../config.js";
+import { TuiConfig } from "../types/index.js";
 
 export function useConfig(configPath?: string) {
   const [config, setConfig] = useState<TuiConfig | null>(null);
@@ -7,6 +8,7 @@ export function useConfig(configPath?: string) {
 
   useEffect(() => {
     const result = loadConfig(configPath);
+
     setConfig(result);
     setLoaded(true);
   }, [configPath]);

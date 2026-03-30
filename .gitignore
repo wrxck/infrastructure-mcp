@@ -8,3 +8,4 @@ tui/node_modules/
 tui/dist/
 .infrastructure-mcp.json
 .env
+docs/superpowers/

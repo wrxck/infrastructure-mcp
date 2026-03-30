@@ -1,31 +1,8 @@
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
-import * as path from "path";
-import * as fs from "fs";
-
-export interface ToolResult {
-  content: string;
-  isError: boolean;
-}
-
-export interface ToolInfo {
-  name: string;
-  description: string;
-}
-
-export interface McpClient {
-  connect(): Promise<void>;
-  callTool(name: string, args?: Record<string, unknown>): Promise<ToolResult>;
-  listTools(): Promise<ToolInfo[]>;
-  isConnected(): boolean;
-  disconnect(): Promise<void>;
-}
-
-interface PendingRequest {
-  resolve: (value: unknown) => void;
-  reject: (reason: unknown) => void;
-}
-
-const SANITIZATION_PATTERN = /----UNTRUSTED_CONTENT_[a-f0-9]+\n?/g;
+import * as path from "node:path";
+import * as fs from "node:fs";
+import { CallToolResult, ContentItem, McpClient, PendingRequest, Tool, ToolInfo, ToolResult } from "./types/index.js";
+import { SANITIZATION_PATTERN } from "./constants/index.js";
 
 function stripSanitizationMarkers(text: string): string {
   return text.replace(SANITIZATION_PATTERN, "");
@@ -43,6 +20,7 @@ export function createMcpClient(
 ): McpClient {
   // Validate JAR path
   const resolvedJar = path.resolve(jarPath);
+
   if (!resolvedJar.endsWith(".jar")) {
     throw new Error(`Invalid JAR path: must end with .jar`);
   }
@@ -53,13 +31,15 @@ export function createMcpClient(
   let proc: ChildProcessWithoutNullStreams | null = null;
   let connected = false;
   let nextId = 1;
-  const pending = new Map<number, PendingRequest>();
   let buffer = Buffer.alloc(0);
+
+  const pending = new Map<number, PendingRequest>();
 
   function rejectAll(reason: Error): void {
     for (const [, { reject }] of pending) {
       reject(reason);
     }
+
     pending.clear();
   }
 
@@ -67,27 +47,33 @@ export function createMcpClient(
     while (true) {
       // Find the header separator
       const separatorIdx = buffer.indexOf("\r\n\r\n");
-      if (separatorIdx === -1) break;
+
+      if (separatorIdx === -1) {
+        break;
+      }
 
       const header = buffer.slice(0, separatorIdx).toString("utf8");
       const match = header.match(/Content-Length:\s*(\d+)/i);
+
       if (!match) {
         // Malformed — skip past the separator
-        buffer = buffer.slice(separatorIdx + 4);
+        buffer = buffer.subarray(separatorIdx + 4);
         continue;
       }
 
       const contentLength = parseInt(match[1], 10);
       const bodyStart = separatorIdx + 4;
+
       if (buffer.length < bodyStart + contentLength) {
         // Haven't received the full body yet
         break;
       }
 
-      const body = buffer.slice(bodyStart, bodyStart + contentLength).toString("utf8");
-      buffer = buffer.slice(bodyStart + contentLength);
+      const body = buffer.subarray(bodyStart, bodyStart + contentLength).toString("utf8");
+      buffer = buffer.subarray(bodyStart + contentLength);
 
       let message: any;
+
       try {
         message = JSON.parse(body);
       } catch {
@@ -95,9 +81,13 @@ export function createMcpClient(
         continue;
       }
 
-      if (message.id !== undefined && pending.has(message.id)) {
+      const hasMessage = message.id !== undefined && pending.has(message.id);
+
+      if (hasMessage) {
         const { resolve, reject } = pending.get(message.id)!;
+
         pending.delete(message.id);
+
         if (message.error) {
           reject(new Error(message.error.message ?? "RPC error"));
         } else {
@@ -107,15 +97,20 @@ export function createMcpClient(
     }
   }
 
-  function sendRequest(method: string, params: object): Promise<unknown> {
-    return new Promise((resolve, reject) => {
+  function sendRequest<T>(method: string, params: object): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
       if (!proc) {
         reject(new Error("Not connected"));
+
         return;
       }
+
       const id = nextId++;
-      pending.set(id, { resolve, reject });
+
+      pending.set(id, { resolve: (value: unknown) => resolve(value as T), reject });
+
       const msg = buildMessage({ jsonrpc: "2.0", id, method, params });
+
       proc.stdin.write(msg);
     });
   }
@@ -137,12 +132,16 @@ export function createMcpClient(
             proc = null;
           }
         };
+
+        const cleanUpAndExit = () => { cleanup(); process.exit(0); };
+
         process.on("exit", cleanup);
-        process.on("SIGINT", () => { cleanup(); process.exit(0); });
-        process.on("SIGTERM", () => { cleanup(); process.exit(0); });
+        process.on("SIGINT", cleanUpAndExit);
+        process.on("SIGTERM", cleanUpAndExit);
 
         proc.stdout.on("data", (chunk: Buffer) => {
           buffer = Buffer.concat([buffer, chunk]);
+
           processBuffer();
         });
 
@@ -152,17 +151,20 @@ export function createMcpClient(
 
         proc.on("error", (err: Error) => {
           connected = false;
+
           rejectAll(err);
           reject(err);
         });
 
         proc.on("exit", (_code: number | null) => {
           connected = false;
+
           rejectAll(new Error("MCP server process exited"));
         });
 
         // Send initialize
         const id = nextId++;
+
         pending.set(id, {
           resolve: (_result: unknown) => {
             connected = true;
@@ -183,6 +185,7 @@ export function createMcpClient(
             capabilities: {},
           },
         });
+
         proc.stdin.write(msg);
       });
     },
@@ -191,17 +194,17 @@ export function createMcpClient(
       name: string,
       args: Record<string, unknown> = {}
     ): Promise<ToolResult> {
-      const result = (await sendRequest("tools/call", {
+      const result: CallToolResult = (await sendRequest<CallToolResult>("tools/call", {
         name,
         arguments: args,
-      })) as any;
+      }));
 
-      const contentItems: Array<{ type: string; text?: string }> =
+      const contentItems: Array<ContentItem> =
         result?.content ?? [];
 
       const rawText = contentItems
-        .filter((item) => item.type === "text" && item.text != null)
-        .map((item) => item.text!)
+        .filter((item: ContentItem) => item.type === "text" && item.text != null)
+        .map((item: ContentItem) => item.text!)
         .join("\n");
 
       const content = stripSanitizationMarkers(rawText);
@@ -214,7 +217,8 @@ export function createMcpClient(
       const result = (await sendRequest("tools/list", {})) as any;
       const tools: Array<{ name: string; description?: string }> =
         result?.tools ?? [];
-      return tools.map((t) => ({
+
+      return tools.map((t: Tool) => ({
         name: t.name,
         description: t.description ?? "",
       }));
@@ -227,6 +231,7 @@ export function createMcpClient(
     async disconnect(): Promise<void> {
       connected = false;
       rejectAll(new Error("Client disconnected"));
+
       if (proc) {
         proc.kill();
         proc = null;

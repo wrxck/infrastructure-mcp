@@ -1,26 +1,11 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { useMcp } from "../hooks/use-mcp.js";
 import Table from "../components/table.js";
 import Header from "../components/header.js";
 import KeyHint from "../components/key-hint.js";
 import Spinner from "../components/spinner.js";
-
-interface Zone {
-  id: string;
-  name: string;
-  status: string;
-  recordCount?: number;
-  ssl?: string;
-}
-
-interface FleetDomain {
-  name: string;
-}
-
-interface DashboardProps {
-  onNavigate: (screen: string, params?: Record<string, unknown>) => void;
-}
+import { DashboardProps, FleetDomain, Zone } from "../types/index.js";
 
 const ZONE_COLUMNS = [
   { key: "name", header: "Domain" },
@@ -51,6 +36,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     async function fetch() {
       setLoading(true);
       setError(null);
+
       try {
         const [zonesResult, fleetResult] = await Promise.all([
           callTool("cloudflare_list_zones"),
@@ -60,6 +46,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         if (!zonesResult.isError) {
           try {
             const parsed = JSON.parse(zonesResult.content);
+
             setZones(Array.isArray(parsed) ? parsed : []);
           } catch {
             setZones([]);
@@ -69,6 +56,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         if (!fleetResult.isError) {
           try {
             const parsed = JSON.parse(fleetResult.content);
+
             setFleetDomains(Array.isArray(parsed) ? parsed : []);
           } catch {
             setFleetDomains([]);
@@ -87,28 +75,49 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     if (key.upArrow) {
       setSelectedIndex(i => Math.max(0, i - 1));
     }
+
     if (key.downArrow) {
       setSelectedIndex(i => Math.min(zones.length - 1, i + 1));
     }
+
     if (key.return && zones.length > 0) {
       const zone = zones[selectedIndex];
+
       if (zone) {
         onNavigate("zone-detail", { zone });
       }
     }
-    if (_input === "o") onNavigate("onboard");
-    if (_input === "a") onNavigate("audit");
+
+    if (_input === "o") {
+      onNavigate("onboard");
+    }
+
+    if (_input === "a") {
+      onNavigate("audit");
+    }
+
     if (_input === "r") {
       setLoading(true);
       callTool("cloudflare_list_zones").then(r => {
         if (!r.isError) {
-          try { setZones(JSON.parse(r.content)); } catch { setZones([]); }
+          try {
+            setZones(JSON.parse(r.content));
+          } catch {
+            setZones([]);
+          }
         }
+
         setLoading(false);
       });
     }
-    if (_input === "s") onNavigate("settings");
-    if (_input === "f") onNavigate("fleet");
+
+    if (_input === "s") {
+      onNavigate("settings");
+    }
+
+    if (_input === "f") {
+      onNavigate("fleet");
+    }
   });
 
   const zoneRows = zones.map(z => ({
