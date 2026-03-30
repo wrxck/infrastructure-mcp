@@ -1,0 +1,16 @@
+{
+  "name": "infrastructure-mcp-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/shared",
+    "packages/orchestrator"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "clean": "rm -rf packages/*/dist"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
