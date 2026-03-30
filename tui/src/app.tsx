@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useApp, useInput } from "ink";
 import { useConfig } from "./hooks/use-config.js";
 import { McpContext } from "./hooks/use-mcp.js";
-import { createMcpClient, type McpClient, type ToolResult } from "./mcp-client.js";
-import { findJar, type TuiConfig } from "./config.js";
+import { createMcpClient } from "./mcp-client.js";
+import { findJar } from "./config.js";
 import Spinner from "./components/spinner.js";
 import Setup from "./screens/setup.js";
 import Dashboard from "./screens/dashboard.js";
@@ -12,22 +12,10 @@ import Onboard from "./screens/onboard.js";
 import Audit from "./screens/audit.js";
 import Fleet from "./screens/fleet.js";
 import Settings from "./screens/settings.js";
+import { McpClient, ToolResult } from "./types/index.js";
+import { AppProps, Screen, TuiConfig, Zone } from "./types/index.js";
 
-type Screen =
-  | "loading"
-  | "setup"
-  | "dashboard"
-  | "zone-detail"
-  | "onboard"
-  | "audit"
-  | "fleet"
-  | "settings";
 
-interface AppProps {
-  initialScreen?: string;
-  jarFlag?: string;
-  configPath?: string;
-}
 
 export default function App({ initialScreen, jarFlag, configPath }: AppProps) {
   const { exit } = useApp();
@@ -60,12 +48,15 @@ export default function App({ initialScreen, jarFlag, configPath }: AppProps) {
     async (cfg: TuiConfig) => {
       const jarPath = jarFlag ?? cfg.jarPath ?? findJar() ?? "";
       const client = createMcpClient(jarPath, cfg.env);
+
       try {
         await client.connect();
+
         setMcpClient(client);
         setScreen("dashboard");
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
+
         setConnectError(msg);
         setScreen("setup");
       }
@@ -74,7 +65,9 @@ export default function App({ initialScreen, jarFlag, configPath }: AppProps) {
   );
 
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded) {
+      return;
+    }
 
     if (needsSetup || initialScreen === "setup") {
       setScreen("setup");
@@ -89,7 +82,10 @@ export default function App({ initialScreen, jarFlag, configPath }: AppProps) {
   // MCP context value
   const callTool = useCallback(
     async (name: string, args?: Record<string, unknown>): Promise<ToolResult> => {
-      if (!mcpClient) return { content: "Not connected", isError: true };
+      if (!mcpClient) {
+        return { content: "Not connected", isError: true };
+      }
+
       return mcpClient.callTool(name, args);
     },
     [mcpClient]
@@ -119,27 +115,33 @@ export default function App({ initialScreen, jarFlag, configPath }: AppProps) {
 
   return (
     <McpContext.Provider value={mcpContextValue}>
+
       {screen === "dashboard" && (
         <Dashboard onNavigate={navigate} />
       )}
+
       {screen === "zone-detail" && (
         <ZoneDetail
-          zone={screenParams.zone as { id: string; name: string; status: string }}
+          zone={screenParams.zone as Zone}
           onBack={() => setScreen("dashboard")}
         />
       )}
+
       {screen === "onboard" && (
         <Onboard
           onComplete={() => setScreen("dashboard")}
           onBack={() => setScreen("dashboard")}
         />
       )}
+
       {screen === "audit" && (
         <Audit onBack={() => setScreen("dashboard")} />
       )}
+
       {screen === "fleet" && (
         <Fleet onBack={() => setScreen("dashboard")} />
       )}
+
       {screen === "settings" && (
         <Settings
           config={config}
@@ -147,6 +149,7 @@ export default function App({ initialScreen, jarFlag, configPath }: AppProps) {
           onBack={() => setScreen("dashboard")}
         />
       )}
+
     </McpContext.Provider>
   );
 }

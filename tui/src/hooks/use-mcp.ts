@@ -1,12 +1,5 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
-import type { McpClient, ToolResult } from "../mcp-client.js";
-
-interface McpContextValue {
-  client: McpClient | null;
-  callTool: (name: string, args?: Record<string, unknown>) => Promise<ToolResult>;
-  loading: boolean;
-  error: string | null;
-}
+import { createContext, useContext, useState, useCallback } from "react";
+import { McpContextValue } from "../types/index.js";
 
 export const McpContext = createContext<McpContextValue>({
   client: null,
@@ -30,16 +23,20 @@ export function useToolCall() {
       setLoading(true);
       setError(null);
       setData(null);
+
       try {
         const result = await callTool(name, args);
+
         if (result.isError) {
           setError(result.content);
         } else {
           setData(result.content);
         }
+
         return result;
       } catch (err: any) {
         setError(err.message ?? "Unknown error");
+
         return { content: err.message, isError: true };
       } finally {
         setLoading(false);

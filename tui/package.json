@@ -1,17 +1,47 @@
 {
   "name": "infrastructure-tui",
   "version": "1.2.0",
-  "description": "Terminal UI for infrastructure management via MCP",
+  "description": "Interactive terminal UI for managing Cloudflare, Namecheap, and Fleet infrastructure via MCP",
   "type": "module",
-  "bin": {
-    "infrastructure-tui": "./dist/bin/cli.js"
+  "license": "MIT",
+  "author": "Matt Hesketh <matt@heskethwebdesign.co.uk>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wrxck/infrastructure-mcp.git",
+    "directory": "tui"
   },
+  "homepage": "https://infrastructure-mcp.hesketh.pro",
+  "keywords": [
+    "cloudflare",
+    "namecheap",
+    "dns",
+    "infrastructure",
+    "mcp",
+    "tui",
+    "terminal",
+    "ink",
+    "cli",
+    "domain-management",
+    "security-hardening"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "bin": {
+    "infrastructure-tui": "dist/bin/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "tsx bin/cli.ts",
     "dev": "tsx watch bin/cli.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "ink": "^5.2.0",

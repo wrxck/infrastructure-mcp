@@ -1,37 +1,9 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import SelectInput from "ink-select-input";
 import TextInput from "../components/text-input.js";
-import { TuiConfig, maskSecret } from "../config.js";
-
-interface SetupProps {
-  onComplete: (config: TuiConfig) => void;
-}
-
-type ExperienceLevel = "learner" | "comfortable" | "professional";
-
-type Step =
-  | "welcome"
-  | "experience"
-  | "source-review"
-  | "cf-auth-type"
-  | "cf-fields"
-  | "nc-fields"
-  | "jar-path"
-  | "summary";
-
-interface FormState {
-  experienceLevel: ExperienceLevel;
-  cfAuthType: "global" | "token";
-  cfApiKey: string;
-  cfEmail: string;
-  cfToken: string;
-  cfAccountId: string;
-  ncApiUser: string;
-  ncApiKey: string;
-  ncClientIp: string;
-  jarPath: string;
-}
+import { maskSecret } from "../config.js";
+import { CfGlobalField, CfTokenField, ExperienceLevel, FormState, NcField, SetupProps, Step, TuiConfig } from "../types/index.js";
 
 const EXPERIENCE_ITEMS = [
   {
@@ -61,9 +33,6 @@ const SOURCE_REVIEW_ITEMS = [
 
 // Global fields: API Key, Email, Account ID
 // Token fields: Token, Account ID
-type CfGlobalField = "cfApiKey" | "cfEmail" | "cfAccountId";
-type CfTokenField = "cfToken" | "cfAccountId";
-type NcField = "ncApiUser" | "ncApiKey" | "ncClientIp";
 
 const CF_GLOBAL_FIELDS: Array<{
   key: CfGlobalField;
@@ -71,27 +40,27 @@ const CF_GLOBAL_FIELDS: Array<{
   mask: boolean;
   learnerHint: string;
 }> = [
-  {
-    key: "cfApiKey",
-    label: "Cloudflare API Key",
-    mask: true,
-    learnerHint:
-      "Found at dash.cloudflare.com → My Profile → API Tokens → Global API Key",
-  },
-  {
-    key: "cfEmail",
-    label: "Cloudflare Email",
-    mask: false,
-    learnerHint: "The email address you use to log in to Cloudflare",
-  },
-  {
-    key: "cfAccountId",
-    label: "Cloudflare Account ID",
-    mask: false,
-    learnerHint:
-      "Found at dash.cloudflare.com → right sidebar when viewing any zone",
-  },
-];
+    {
+      key: "cfApiKey",
+      label: "Cloudflare API Key",
+      mask: true,
+      learnerHint:
+        "Found at dash.cloudflare.com → My Profile → API Tokens → Global API Key",
+    },
+    {
+      key: "cfEmail",
+      label: "Cloudflare Email",
+      mask: false,
+      learnerHint: "The email address you use to log in to Cloudflare",
+    },
+    {
+      key: "cfAccountId",
+      label: "Cloudflare Account ID",
+      mask: false,
+      learnerHint:
+        "Found at dash.cloudflare.com → right sidebar when viewing any zone",
+    },
+  ];
 
 const CF_TOKEN_FIELDS: Array<{
   key: CfTokenField;
@@ -99,21 +68,21 @@ const CF_TOKEN_FIELDS: Array<{
   mask: boolean;
   learnerHint: string;
 }> = [
-  {
-    key: "cfToken",
-    label: "Cloudflare API Token",
-    mask: true,
-    learnerHint:
-      "Create a scoped token at dash.cloudflare.com → My Profile → API Tokens",
-  },
-  {
-    key: "cfAccountId",
-    label: "Cloudflare Account ID",
-    mask: false,
-    learnerHint:
-      "Found at dash.cloudflare.com → right sidebar when viewing any zone",
-  },
-];
+    {
+      key: "cfToken",
+      label: "Cloudflare API Token",
+      mask: true,
+      learnerHint:
+        "Create a scoped token at dash.cloudflare.com → My Profile → API Tokens",
+    },
+    {
+      key: "cfAccountId",
+      label: "Cloudflare Account ID",
+      mask: false,
+      learnerHint:
+        "Found at dash.cloudflare.com → right sidebar when viewing any zone",
+    },
+  ];
 
 const NC_FIELDS: Array<{
   key: NcField;
@@ -121,27 +90,27 @@ const NC_FIELDS: Array<{
   mask: boolean;
   learnerHint: string;
 }> = [
-  {
-    key: "ncApiUser",
-    label: "Namecheap API User",
-    mask: false,
-    learnerHint:
-      "Your Namecheap username — enable API at namecheap.com → Profile → Tools → API Access",
-  },
-  {
-    key: "ncApiKey",
-    label: "Namecheap API Key",
-    mask: true,
-    learnerHint: "Generated at namecheap.com → Profile → Tools → API Access",
-  },
-  {
-    key: "ncClientIp",
-    label: "Client IP Address",
-    mask: false,
-    learnerHint:
-      "Your server's public IP — must be whitelisted in Namecheap API settings",
-  },
-];
+    {
+      key: "ncApiUser",
+      label: "Namecheap API User",
+      mask: false,
+      learnerHint:
+        "Your Namecheap username — enable API at namecheap.com → Profile → Tools → API Access",
+    },
+    {
+      key: "ncApiKey",
+      label: "Namecheap API Key",
+      mask: true,
+      learnerHint: "Generated at namecheap.com → Profile → Tools → API Access",
+    },
+    {
+      key: "ncClientIp",
+      label: "Client IP Address",
+      mask: false,
+      learnerHint:
+        "Your server's public IP — must be whitelisted in Namecheap API settings",
+    },
+  ];
 
 function WelcomeStep({ onNext }: { onNext: () => void }) {
   useInput((_input, key) => {
@@ -340,14 +309,14 @@ function SummaryStep({
   const cfFields =
     form.cfAuthType === "global"
       ? [
-          { label: "API Key", value: maskSecret(form.cfApiKey) },
-          { label: "Email", value: form.cfEmail },
-          { label: "Account ID", value: form.cfAccountId },
-        ]
+        { label: "API Key", value: maskSecret(form.cfApiKey) },
+        { label: "Email", value: form.cfEmail },
+        { label: "Account ID", value: form.cfAccountId },
+      ]
       : [
-          { label: "API Token", value: maskSecret(form.cfToken) },
-          { label: "Account ID", value: form.cfAccountId },
-        ];
+        { label: "API Token", value: maskSecret(form.cfToken) },
+        { label: "Account ID", value: form.cfAccountId },
+      ];
 
   return (
     <Box flexDirection="column" gap={1}>
@@ -458,26 +427,27 @@ export default function Setup({ onComplete }: SetupProps) {
   }
 
   function handleSave() {
-    const env: Record<string, string> = {};
+    const env: Record<string, string> = {
+      ...(form.cfAuthType === "global"
+        ? {
+          ...(form.cfApiKey && { CLOUDFLARE_API_KEY: form.cfApiKey }),
+          ...(form.cfEmail && { CLOUDFLARE_EMAIL: form.cfEmail }),
+        }
+        : {
+          ...(form.cfToken && { CLOUDFLARE_API_TOKEN: form.cfToken }),
+        }),
 
-    if (form.cfAuthType === "global") {
-      if (form.cfApiKey) env["CLOUDFLARE_API_KEY"] = form.cfApiKey;
-      if (form.cfEmail) env["CLOUDFLARE_EMAIL"] = form.cfEmail;
-    } else {
-      if (form.cfToken) env["CLOUDFLARE_API_TOKEN"] = form.cfToken;
-    }
-    if (form.cfAccountId) env["CLOUDFLARE_ACCOUNT_ID"] = form.cfAccountId;
-    if (form.ncApiUser) env["NAMECHEAP_API_USER"] = form.ncApiUser;
-    if (form.ncApiKey) env["NAMECHEAP_API_KEY"] = form.ncApiKey;
-    if (form.ncClientIp) env["NAMECHEAP_CLIENT_IP"] = form.ncClientIp;
+      ...(form.cfAccountId && { CLOUDFLARE_ACCOUNT_ID: form.cfAccountId }),
+      ...(form.ncApiUser && { NAMECHEAP_API_USER: form.ncApiUser }),
+      ...(form.ncApiKey && { NAMECHEAP_API_KEY: form.ncApiKey }),
+      ...(form.ncClientIp && { NAMECHEAP_CLIENT_IP: form.ncClientIp }),
+    };
 
-    const config: TuiConfig = {
+    onComplete({
       jarPath: form.jarPath,
       env,
       experienceLevel: form.experienceLevel,
-    };
-
-    onComplete(config);
+    });
   }
 
   if (step === "welcome") {

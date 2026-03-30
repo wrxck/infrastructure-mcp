@@ -1,15 +1,9 @@
-import React from "react";
 import { Box, Text, useInput } from "ink";
 import SelectInput from "ink-select-input";
-import { TuiConfig, maskSecret } from "../config.js";
+import { maskSecret } from "../config.js";
 import Header from "../components/header.js";
 import KeyHint from "../components/key-hint.js";
-
-interface SettingsProps {
-  config: TuiConfig | null;
-  onRunSetup: () => void;
-  onBack: () => void;
-}
+import { SettingsProps } from "../types/index.js";
 
 const SECRET_KEYS = [
   "CLOUDFLARE_API_KEY",
@@ -18,7 +12,10 @@ const SECRET_KEYS = [
 ];
 
 function formatEnvValue(key: string, value: string): string {
-  if (SECRET_KEYS.includes(key)) return maskSecret(value);
+  if (SECRET_KEYS.includes(key)) {
+    return maskSecret(value);
+  }
+
   return value;
 }
 
@@ -29,12 +26,19 @@ const MENU_ITEMS = [
 
 export default function Settings({ config, onRunSetup, onBack }: SettingsProps) {
   useInput((_input, key) => {
-    if (key.escape) onBack();
+    if (key.escape) {
+      onBack();
+    }
   });
 
   function handleSelect(item: { value: string }) {
-    if (item.value === "setup") onRunSetup();
-    if (item.value === "back") onBack();
+    if (item.value === "setup") {
+      onRunSetup();
+    }
+
+    if (item.value === "back") {
+      onBack();
+    }
   }
 
   return (

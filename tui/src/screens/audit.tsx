@@ -1,34 +1,11 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { useMcp } from "../hooks/use-mcp.js";
 import Table from "../components/table.js";
 import Header from "../components/header.js";
 import KeyHint from "../components/key-hint.js";
 import Spinner from "../components/spinner.js";
-
-interface Zone {
-  id: string;
-  name: string;
-  status: string;
-}
-
-interface ProtectionStatus {
-  setting: string;
-  pass: boolean;
-}
-
-interface AuditRow {
-  domain: string;
-  total: number;
-  passed: number;
-  failed: number;
-  result: string;
-  [key: string]: string | number;
-}
-
-interface AuditProps {
-  onBack: () => void;
-}
+import { AuditProps, AuditRow, ProtectionStatus, Zone } from "../types/index.js";
 
 const AUDIT_COLUMNS = [
   { key: "domain", header: "Domain" },
@@ -47,17 +24,21 @@ export default function Audit({ onBack }: AuditProps) {
     async function run() {
       setLoading(true);
       setError(null);
+
       try {
         const zonesResult = await callTool("cloudflare_list_zones");
+
         if (zonesResult.isError) {
           setError(zonesResult.content);
           setLoading(false);
+
           return;
         }
 
         let zones: Zone[] = [];
         try {
           const parsed = JSON.parse(zonesResult.content);
+
           zones = Array.isArray(parsed) ? parsed : [];
         } catch {
           zones = [];
@@ -68,9 +49,11 @@ export default function Audit({ onBack }: AuditProps) {
         for (const zone of zones) {
           const protResult = await callTool("cloudflare_get_protection_status", { domain: zone.name });
           let statuses: ProtectionStatus[] = [];
+
           if (!protResult.isError) {
             try {
               const parsed = JSON.parse(protResult.content);
+
               statuses = Array.isArray(parsed) ? parsed : [];
             } catch {
               statuses = [];
@@ -101,7 +84,9 @@ export default function Audit({ onBack }: AuditProps) {
   }, []);
 
   useInput((_input, key) => {
-    if (key.escape) onBack();
+    if (key.escape) {
+      onBack();
+    }
   });
 
   return (

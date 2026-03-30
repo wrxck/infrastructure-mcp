@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { useMcp } from "../hooks/use-mcp.js";
 import Header from "../components/header.js";
@@ -6,6 +6,7 @@ import KeyHint from "../components/key-hint.js";
 import Spinner from "../components/spinner.js";
 import Confirm from "../components/confirm.js";
 import TextInput from "../components/text-input.js";
+import { DOMAIN_RE } from "../constants/index.js";
 
 type OnboardStep = "input" | "confirm" | "running" | "done";
 
@@ -36,15 +37,21 @@ export default function Onboard({ onComplete, onBack }: OnboardProps) {
     }
   });
 
-  const DOMAIN_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+
 
   function handleDomainSubmit(value: string) {
     const trimmed = value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
-    if (trimmed.length === 0) return;
-    if (!DOMAIN_RE.test(trimmed)) {
-      setError("Invalid domain format. Enter a domain like example.com");
+
+    if (trimmed.length === 0) {
       return;
     }
+
+    if (!DOMAIN_RE.test(trimmed)) {
+      setError("Invalid domain format. Enter a domain like example.com");
+
+      return;
+    }
+
     setError(null);
     setDomain(trimmed);
     setStep("confirm");
@@ -53,6 +60,7 @@ export default function Onboard({ onComplete, onBack }: OnboardProps) {
   async function handleConfirm() {
     setStep("running");
     setError(null);
+
     try {
       const res = await callTool("onboard_domain", {
         domain,
@@ -63,11 +71,13 @@ export default function Onboard({ onComplete, onBack }: OnboardProps) {
       if (res.isError) {
         setError(res.content);
         setStep("done");
+
         return;
       }
 
       try {
         const parsed = JSON.parse(res.content);
+
         setResult(parsed);
       } catch {
         setResult({});

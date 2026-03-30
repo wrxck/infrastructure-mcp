@@ -1,7 +1,5 @@
-import React from "react";
 import { Box, Text } from "ink";
-
-interface HeaderProps { title: string; breadcrumb?: string; version?: string; }
+import { HeaderProps } from "../types/index.js";
 
 export default function Header({ title, breadcrumb, version }: HeaderProps) {
   return (

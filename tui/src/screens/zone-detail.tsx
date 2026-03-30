@@ -1,36 +1,11 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { useMcp } from "../hooks/use-mcp.js";
 import Table from "../components/table.js";
 import Header from "../components/header.js";
 import KeyHint from "../components/key-hint.js";
 import Spinner from "../components/spinner.js";
-
-interface DnsRecord {
-  type: string;
-  name: string;
-  content: string;
-  proxied?: boolean;
-}
-
-interface ProtectionStatus {
-  setting: string;
-  category: string;
-  expected: string;
-  actual: string;
-  pass: boolean;
-}
-
-interface Zone {
-  id: string;
-  name: string;
-  status: string;
-}
-
-interface ZoneDetailProps {
-  zone: Zone;
-  onBack: () => void;
-}
+import { DnsRecord, ProtectionStatus, ZoneDetailProps } from "../types/index.js";
 
 const DNS_COLUMNS = [
   { key: "type", header: "Type" },
@@ -71,6 +46,7 @@ export default function ZoneDetail({ zone, onBack }: ZoneDetailProps) {
         if (!dnsResult.isError) {
           try {
             const parsed = JSON.parse(dnsResult.content);
+
             setDnsRecords(Array.isArray(parsed) ? parsed : []);
           } catch {
             setDnsRecords([]);
@@ -80,6 +56,7 @@ export default function ZoneDetail({ zone, onBack }: ZoneDetailProps) {
         if (!protResult.isError) {
           try {
             const parsed = JSON.parse(protResult.content);
+
             setProtection(Array.isArray(parsed) ? parsed : []);
           } catch {
             setProtection([]);
