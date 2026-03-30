@@ -6,7 +6,7 @@
 
     <groupId>io.github.wrxck</groupId>
     <artifactId>infrastructure-mcp</artifactId>
-    <version>1.1.2</version>
+    <version>1.2.0</version>
     <packaging>jar</packaging>
 
     <name>Infrastructure MCP Server</name>

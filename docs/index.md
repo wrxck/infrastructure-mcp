@@ -58,4 +58,4 @@ Claude Code / AI Assistant
 
 ## Version
 
-Current release: **v1.1.2**
+Current release: **v1.2.0** — [Changelog](reference/changelog.md)
