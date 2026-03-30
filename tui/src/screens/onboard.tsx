@@ -36,9 +36,16 @@ export default function Onboard({ onComplete, onBack }: OnboardProps) {
     }
   });
 
+  const DOMAIN_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+
   function handleDomainSubmit(value: string) {
-    const trimmed = value.trim();
+    const trimmed = value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
     if (trimmed.length === 0) return;
+    if (!DOMAIN_RE.test(trimmed)) {
+      setError("Invalid domain format. Enter a domain like example.com");
+      return;
+    }
+    setError(null);
     setDomain(trimmed);
     setStep("confirm");
   }

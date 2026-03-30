@@ -20,39 +20,36 @@ function claudeConfigPath(): string {
 }
 
 export function loadConfig(configPath?: string): TuiConfig | null {
-  const ownPath = ownConfigPath(configPath);
-
-  if (fs.existsSync(ownPath)) {
-    try {
-      const raw = fs.readFileSync(ownPath, "utf-8");
-      return JSON.parse(raw) as TuiConfig;
-    } catch {
-      // fall through to claude.json fallback
-    }
+  // Try own config file first (no TOCTOU — just try to read)
+  try {
+    const ownPath = ownConfigPath(configPath);
+    const raw = fs.readFileSync(ownPath, "utf-8");
+    return JSON.parse(raw) as TuiConfig;
+  } catch {
+    // fall through to claude.json fallback
   }
 
-  const claudePath = claudeConfigPath();
-  if (fs.existsSync(claudePath)) {
-    try {
-      const raw = fs.readFileSync(claudePath, "utf-8");
-      const claude = JSON.parse(raw);
-      const server = claude?.mcpServers?.["infrastructure-mcp"];
-      if (!server) return null;
+  // Try Claude Code config
+  try {
+    const claudePath = claudeConfigPath();
+    const raw = fs.readFileSync(claudePath, "utf-8");
+    const claude = JSON.parse(raw);
+    const server = claude?.mcpServers?.["infrastructure-mcp"];
+    if (!server) return null;
 
-      const args: string[] = server.args ?? [];
-      const jarIndex = args.indexOf("-jar");
-      const jarPath = jarIndex !== -1 ? args[jarIndex + 1] : "";
+    const args: string[] = server.args ?? [];
+    const jarIndex = args.indexOf("-jar");
+    const jarPath = jarIndex !== -1 ? args[jarIndex + 1] : "";
 
-      const env: Record<string, string> = server.env ?? {};
+    const env: Record<string, string> = server.env ?? {};
 
-      return {
-        jarPath,
-        env,
-        experienceLevel: "professional",
-      };
-    } catch {
-      // fall through
-    }
+    return {
+      jarPath,
+      env,
+      experienceLevel: "professional",
+    };
+  } catch {
+    // fall through
   }
 
   return null;
@@ -60,12 +57,17 @@ export function loadConfig(configPath?: string): TuiConfig | null {
 
 export function saveConfig(config: TuiConfig, configPath?: string): void {
   const targetPath = ownConfigPath(configPath);
-  fs.writeFileSync(targetPath, JSON.stringify(config, null, 2), "utf-8");
+  fs.writeFileSync(targetPath, JSON.stringify(config, null, 2), {
+    encoding: "utf-8",
+    mode: 0o600,
+  });
+  // Ensure permissions are correct even if file already existed
+  fs.chmodSync(targetPath, 0o600);
 }
 
 export function maskSecret(value: string): string {
   if (value.length === 0) return "";
-  if (value.length <= 4) return "•".repeat(value.length);
+  if (value.length < 8) return "•".repeat(value.length);
   const visible = value.slice(-4);
   const masked = "•".repeat(value.length - 4);
   return masked + visible;

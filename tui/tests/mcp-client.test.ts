@@ -1,10 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { EventEmitter } from "events";
 
-// Mock child_process before importing the module under test
+// Mock child_process and fs before importing the module under test
 vi.mock("child_process", () => ({
   spawn: vi.fn(),
 }));
+
+vi.mock("fs", async () => {
+  const actual = await vi.importActual("fs");
+  return {
+    ...actual,
+    existsSync: vi.fn(() => true),
+  };
+});
 
 import { spawn } from "child_process";
 import { createMcpClient } from "../src/mcp-client.js";

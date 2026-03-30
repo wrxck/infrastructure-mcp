@@ -4,3 +4,7 @@ site/
 *.jar
 .idea/
 *.iml
+tui/node_modules/
+tui/dist/
+.infrastructure-mcp.json
+.env

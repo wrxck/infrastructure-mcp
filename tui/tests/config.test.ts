@@ -4,7 +4,9 @@ vi.mock("fs", () => ({
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
   writeFileSync: vi.fn(),
+  chmodSync: vi.fn(),
   mkdirSync: vi.fn(),
+  readdirSync: vi.fn(),
 }));
 
 vi.mock("os", () => ({
@@ -28,15 +30,11 @@ describe("loadConfig", () => {
       experienceLevel: "professional",
     };
 
-    vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(config));
 
     const result = loadConfig();
 
     expect(result).toEqual(config);
-    expect(fs.existsSync).toHaveBeenCalledWith(
-      "/home/testuser/.infrastructure-mcp.json"
-    );
   });
 
   it("falls back to claude.json when own config missing", () => {
@@ -53,14 +51,11 @@ describe("loadConfig", () => {
       },
     };
 
-    vi.mocked(fs.existsSync).mockImplementation((p) => {
-      if (p === "/home/testuser/.infrastructure-mcp.json") return false;
-      if (p === "/home/testuser/.claude.json") return true;
-      return false;
-    });
-
     vi.mocked(fs.readFileSync).mockImplementation((p) => {
-      if (p === "/home/testuser/.claude.json") {
+      if (String(p).includes(".infrastructure-mcp.json")) {
+        throw new Error("ENOENT");
+      }
+      if (String(p).includes(".claude.json")) {
         return JSON.stringify(claudeConfig);
       }
       throw new Error(`Unexpected read: ${p}`);
@@ -78,7 +73,9 @@ describe("loadConfig", () => {
   });
 
   it("returns null when no config found", () => {
-    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.readFileSync).mockImplementation(() => {
+      throw new Error("ENOENT");
+    });
 
     const result = loadConfig();
 
@@ -87,9 +84,9 @@ describe("loadConfig", () => {
 });
 
 describe("saveConfig", () => {
-  it("writes config to own file", () => {
-    vi.mocked(fs.existsSync).mockReturnValue(true);
+  it("writes config with restrictive permissions (0600)", () => {
     vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
+    vi.mocked(fs.chmodSync).mockImplementation(() => undefined);
 
     const config = {
       jarPath: "/opt/infra/infrastructure-mcp.jar",
@@ -102,7 +99,11 @@ describe("saveConfig", () => {
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       "/home/testuser/.infrastructure-mcp.json",
       JSON.stringify(config, null, 2),
-      "utf-8"
+      { encoding: "utf-8", mode: 0o600 }
+    );
+    expect(fs.chmodSync).toHaveBeenCalledWith(
+      "/home/testuser/.infrastructure-mcp.json",
+      0o600
     );
   });
 });
@@ -112,8 +113,14 @@ describe("maskSecret", () => {
     expect(maskSecret("abcdefghijklmnop")).toBe("••••••••••••mnop");
   });
 
-  it("fully masks short secrets", () => {
+  it("fully masks secrets shorter than 8 chars", () => {
     expect(maskSecret("abc")).toBe("•••");
+    expect(maskSecret("abcde")).toBe("•••••");
+    expect(maskSecret("abcdefg")).toBe("•••••••");
+  });
+
+  it("shows last 4 for secrets 8+ chars", () => {
+    expect(maskSecret("12345678")).toBe("••••5678");
   });
 
   it("returns empty for empty string", () => {

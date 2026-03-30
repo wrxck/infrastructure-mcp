@@ -1,4 +1,6 @@
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
+import * as path from "path";
+import * as fs from "fs";
 
 export interface ToolResult {
   content: string;
@@ -39,6 +41,15 @@ export function createMcpClient(
   jarPath: string,
   env: Record<string, string>
 ): McpClient {
+  // Validate JAR path
+  const resolvedJar = path.resolve(jarPath);
+  if (!resolvedJar.endsWith(".jar")) {
+    throw new Error(`Invalid JAR path: must end with .jar`);
+  }
+  if (!fs.existsSync(resolvedJar)) {
+    throw new Error(`JAR not found: ${resolvedJar}`);
+  }
+
   let proc: ChildProcessWithoutNullStreams | null = null;
   let connected = false;
   let nextId = 1;
@@ -114,10 +125,21 @@ export function createMcpClient(
       return new Promise((resolve, reject) => {
         const mergedEnv = { ...process.env, ...env };
 
-        proc = spawn("java", ["-jar", jarPath], {
+        proc = spawn("java", ["-jar", resolvedJar], {
           env: mergedEnv,
           stdio: ["pipe", "pipe", "pipe"],
         }) as unknown as ChildProcessWithoutNullStreams;
+
+        // Kill child process on parent exit to prevent orphans
+        const cleanup = () => {
+          if (proc) {
+            proc.kill();
+            proc = null;
+          }
+        };
+        process.on("exit", cleanup);
+        process.on("SIGINT", () => { cleanup(); process.exit(0); });
+        process.on("SIGTERM", () => { cleanup(); process.exit(0); });
 
         proc.stdout.on("data", (chunk: Buffer) => {
           buffer = Buffer.concat([buffer, chunk]);
