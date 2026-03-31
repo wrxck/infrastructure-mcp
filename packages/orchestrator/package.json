@@ -15,7 +15,9 @@
   },
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "tsx src/cli.ts",
@@ -23,7 +25,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@infrastructure-mcp/shared": "^1.3.0"
+    "@infrastructure-mcp/shared": "^1.3.0",
+    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

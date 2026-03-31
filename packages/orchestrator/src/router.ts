@@ -1,6 +1,6 @@
 // packages/orchestrator/src/router.ts
 
-import { Role, ToolInfo } from "@infrastructure-mcp/shared";
+import { Role, McpToolDefinition } from "@infrastructure-mcp/shared";
 
 export interface ResolvedTool {
   provider: string;
@@ -10,9 +10,9 @@ export interface ResolvedTool {
 export class ToolRouter {
   private routes = new Map<string, ResolvedTool>();
   private roleMap = new Map<string, string>();
-  private tools: ToolInfo[] = [];
+  private tools: McpToolDefinition[] = [];
 
-  registerProvider(providerName: string, roles: Role[], tools: ToolInfo[]): void {
+  registerProvider(providerName: string, roles: Role[], tools: McpToolDefinition[]): void {
     for (const role of roles) {
       this.roleMap.set(role, providerName);
     }
@@ -23,8 +23,9 @@ export class ToolRouter {
       if (!this.routes.has(providerKey)) {
         this.routes.set(providerKey, { provider: providerName, toolName: tool.name });
         this.tools.push({
+          ...tool,
           name: providerKey,
-          description: `[${providerName}] ${tool.description}`,
+          description: `[${providerName}] ${tool.description ?? ""}`,
         });
       }
 
@@ -35,15 +36,16 @@ export class ToolRouter {
         if (!this.routes.has(roleKey)) {
           this.routes.set(roleKey, { provider: providerName, toolName: tool.name });
           this.tools.push({
+            ...tool,
             name: roleKey,
-            description: `[${role}] ${tool.description}`,
+            description: `[${role}] ${tool.description ?? ""}`,
           });
         }
       }
     }
   }
 
-  getAllTools(): ToolInfo[] {
+  getAllTools(): McpToolDefinition[] {
     return this.tools;
   }
 

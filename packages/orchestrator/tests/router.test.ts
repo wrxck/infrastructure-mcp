@@ -2,20 +2,29 @@
 
 import { describe, it, expect } from "vitest";
 import { ToolRouter } from "../src/router.js";
+import { McpToolDefinition } from "@infrastructure-mcp/shared";
+
+const defaultSchema: Record<string, unknown> = { type: "object", properties: {} };
+
+function toolDef(name: string, description: string, extra?: Partial<McpToolDefinition>): McpToolDefinition {
+  return { name, description, inputSchema: defaultSchema, ...extra };
+}
 
 describe("ToolRouter", () => {
   function makeRouter() {
     const router = new ToolRouter();
 
     router.registerProvider("cloudflare", ["dns_host", "cdn", "security"], [
-      { name: "list_zones", description: "List zones" },
-      { name: "create_zone", description: "Create zone" },
-      { name: "get_protection_status", description: "Get protection status" },
+      toolDef("list_zones", "List zones", { annotations: { readOnlyHint: true } }),
+      toolDef("create_zone", "Create zone", {
+        inputSchema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
+      }),
+      toolDef("get_protection_status", "Get protection status"),
     ]);
 
     router.registerProvider("namecheap", ["dns_registrar"], [
-      { name: "list_domains", description: "List domains" },
-      { name: "get_nameservers", description: "Get nameservers" },
+      toolDef("list_domains", "List domains"),
+      toolDef("get_nameservers", "Get nameservers"),
     ]);
 
     return router;
@@ -45,7 +54,7 @@ describe("ToolRouter", () => {
     it("does not duplicate when provider name equals role name", () => {
       const router = new ToolRouter();
       router.registerProvider("dns_host", ["dns_host"], [
-        { name: "list_zones", description: "List zones" },
+        toolDef("list_zones", "List zones"),
       ]);
 
       const tools = router.getAllTools();
@@ -53,6 +62,28 @@ describe("ToolRouter", () => {
       const occurrences = names.filter((n) => n === "dns_host.list_zones");
 
       expect(occurrences).toHaveLength(1);
+    });
+
+    it("preserves inputSchema through namespacing", () => {
+      const router = makeRouter();
+      const tools = router.getAllTools();
+      const createZone = tools.find((t) => t.name === "cloudflare.create_zone");
+
+      expect(createZone).toBeDefined();
+      expect(createZone!.inputSchema).toEqual({
+        type: "object",
+        properties: { name: { type: "string" } },
+        required: ["name"],
+      });
+    });
+
+    it("preserves annotations through namespacing", () => {
+      const router = makeRouter();
+      const tools = router.getAllTools();
+      const listZones = tools.find((t) => t.name === "cloudflare.list_zones");
+
+      expect(listZones).toBeDefined();
+      expect(listZones!.annotations).toEqual({ readOnlyHint: true });
     });
   });
 

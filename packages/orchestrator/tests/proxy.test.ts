@@ -3,9 +3,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { ProviderProxy } from "../src/proxy.js";
 import { ProviderClient } from "../src/mcp-client.js";
-import { InfraConfig } from "@infrastructure-mcp/shared";
+import { InfraConfig, McpToolDefinition } from "@infrastructure-mcp/shared";
 
-function mockClient(name: string, tools: Array<{ name: string; description: string }>): ProviderClient {
+const defaultSchema: Record<string, unknown> = { type: "object", properties: {} };
+
+function mockClient(name: string, tools: McpToolDefinition[]): ProviderClient {
   return {
     name,
     connect: vi.fn().mockResolvedValue(undefined),
@@ -16,13 +18,17 @@ function mockClient(name: string, tools: Array<{ name: string; description: stri
   };
 }
 
+function toolDef(name: string, description: string): McpToolDefinition {
+  return { name, description, inputSchema: defaultSchema };
+}
+
 describe("ProviderProxy", () => {
   it("starts all providers and registers tools", async () => {
     const cfClient = mockClient("cloudflare", [
-      { name: "list_zones", description: "List zones" },
+      toolDef("list_zones", "List zones"),
     ]);
     const ncClient = mockClient("namecheap", [
-      { name: "list_domains", description: "List domains" },
+      toolDef("list_domains", "List domains"),
     ]);
 
     const clientFactory = vi.fn()
@@ -52,9 +58,34 @@ describe("ProviderProxy", () => {
     expect(names).toContain("namecheap.list_domains");
   });
 
+  it("proxies full tool schemas including inputSchema", async () => {
+    const schema = { type: "object", properties: { page: { type: "number" } }, required: ["page"] };
+    const cfClient = mockClient("cloudflare", [
+      { name: "list_zones", description: "List zones", inputSchema: schema },
+    ]);
+
+    const clientFactory = vi.fn().mockReturnValue(cfClient);
+
+    const config: InfraConfig = {
+      providers: [
+        { name: "cloudflare", command: "cmd", roles: ["dns_host", "cdn", "security"] },
+      ],
+      workflows: {},
+      tui: { experienceLevel: "professional" },
+    };
+
+    const proxy = new ProviderProxy(config, clientFactory);
+    await proxy.startAll();
+
+    const tools = proxy.getAllTools();
+    const cfTool = tools.find((t) => t.name === "cloudflare.list_zones");
+    expect(cfTool).toBeDefined();
+    expect(cfTool!.inputSchema).toEqual(schema);
+  });
+
   it("routes tool calls to correct provider", async () => {
     const cfClient = mockClient("cloudflare", [
-      { name: "list_zones", description: "List zones" },
+      toolDef("list_zones", "List zones"),
     ]);
 
     const clientFactory = vi.fn().mockReturnValue(cfClient);
@@ -76,7 +107,7 @@ describe("ProviderProxy", () => {
 
   it("routes role-aliased tool calls to correct provider", async () => {
     const cfClient = mockClient("cloudflare", [
-      { name: "list_zones", description: "List zones" },
+      toolDef("list_zones", "List zones"),
     ]);
 
     const clientFactory = vi.fn().mockReturnValue(cfClient);
@@ -98,7 +129,7 @@ describe("ProviderProxy", () => {
 
   it("returns error for unknown tool", async () => {
     const clientFactory = vi.fn().mockReturnValue(
-      mockClient("cf", [{ name: "list_zones", description: "List" }])
+      mockClient("cf", [toolDef("list_zones", "List")])
     );
 
     const config: InfraConfig = {
@@ -126,7 +157,7 @@ describe("ProviderProxy", () => {
     };
 
     const goodClient = mockClient("cloudflare", [
-      { name: "list_zones", description: "List zones" },
+      toolDef("list_zones", "List zones"),
     ]);
 
     const clientFactory = vi.fn()
@@ -177,7 +208,7 @@ describe("ProviderProxy", () => {
 
   it("returns provider statuses", async () => {
     const cfClient = mockClient("cloudflare", [
-      { name: "list_zones", description: "List zones" },
+      toolDef("list_zones", "List zones"),
     ]);
 
     const clientFactory = vi.fn().mockReturnValue(cfClient);

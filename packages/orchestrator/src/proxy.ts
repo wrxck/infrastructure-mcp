@@ -5,7 +5,7 @@ import {
   ProviderConfig,
   ProviderStatus,
   Role,
-  ToolInfo,
+  McpToolDefinition,
   ToolResult,
   validateCapabilities,
 } from "@infrastructure-mcp/shared";
@@ -62,7 +62,7 @@ export class ProviderProxy {
     }
   }
 
-  getAllTools(): ToolInfo[] {
+  getAllTools(): McpToolDefinition[] {
     return this.router.getAllTools();
   }
 
