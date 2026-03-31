@@ -1,7 +1,6 @@
 // packages/shared/src/constants.ts
 
 export const CONFIG_FILENAME = ".infrastructure-mcp.json";
-export const MCP_PROTOCOL_VERSION = "2024-11-05";
 export const DEFAULT_HANDSHAKE_TIMEOUT_MS = 30_000;
 export const ORCHESTRATOR_NAME = "infrastructure-mcp";
 export const ORCHESTRATOR_VERSION = "1.3.0";
