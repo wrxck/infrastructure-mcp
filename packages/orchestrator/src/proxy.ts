@@ -11,6 +11,7 @@ import {
 } from "@infrastructure-mcp/shared";
 import { ProviderClient, createProviderClient } from "./mcp-client.js";
 import { ToolRouter } from "./router.js";
+import { CapabilityResolver } from "./capability-resolver.js";
 
 type ClientFactory = (config: ProviderConfig) => ProviderClient;
 
@@ -18,6 +19,7 @@ export class ProviderProxy {
   private clients = new Map<string, ProviderClient>();
   private toolCounts = new Map<string, number>();
   private router = new ToolRouter();
+  private registrations: { name: string; roles: Role[]; tools: McpToolDefinition[] }[] = [];
   private config: InfraConfig;
   private clientFactory: ClientFactory;
 
@@ -36,6 +38,7 @@ export class ProviderProxy {
 
         this.clients.set(providerConfig.name, client);
         this.toolCounts.set(providerConfig.name, tools.length);
+        this.registrations.push({ name: providerConfig.name, roles: providerConfig.roles as Role[], tools });
         this.router.registerProvider(
           providerConfig.name,
           providerConfig.roles as Role[],
@@ -97,6 +100,14 @@ export class ProviderProxy {
 
   getProviderForRole(role: string): string | null {
     return this.router.getProviderForRole(role);
+  }
+
+  buildCapabilityResolver(): CapabilityResolver {
+    const resolver = new CapabilityResolver();
+    for (const reg of this.registrations) {
+      resolver.registerProvider(reg.name, reg.roles, reg.tools);
+    }
+    return resolver;
   }
 
   async shutdownAll(): Promise<void> {

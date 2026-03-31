@@ -8,6 +8,10 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { InfraConfig, validateConfig, ORCHESTRATOR_NAME, ORCHESTRATOR_VERSION } from "@infrastructure-mcp/shared";
 import { ProviderProxy } from "./proxy.js";
+import { WorkflowEngine } from "./workflows/engine.js";
+import { onboardWorkflow } from "./workflows/onboard.js";
+import { migrateWorkflow } from "./workflows/migrate.js";
+import { protectWorkflow } from "./workflows/protect.js";
 
 export async function startServer(config: InfraConfig): Promise<void> {
   const errors = validateConfig(config);
@@ -22,7 +26,16 @@ export async function startServer(config: InfraConfig): Promise<void> {
   const proxy = new ProviderProxy(config);
   await proxy.startAll();
 
-  const allTools = proxy.getAllTools();
+  const resolver = proxy.buildCapabilityResolver();
+  const workflowEngine = new WorkflowEngine(resolver, proxy);
+  workflowEngine.register(onboardWorkflow);
+  workflowEngine.register(migrateWorkflow);
+  workflowEngine.register(protectWorkflow);
+
+  const providerTools = proxy.getAllTools();
+  const workflowTools = workflowEngine.getTools();
+  const allTools = [...providerTools, ...workflowTools];
+  const workflowNames = new Set(workflowTools.map((t) => t.name));
 
   const server = new Server(
     { name: ORCHESTRATOR_NAME, version: ORCHESTRATOR_VERSION },
@@ -42,7 +55,9 @@ export async function startServer(config: InfraConfig): Promise<void> {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
-    const result = await proxy.callTool(name, args ?? {});
+    const result = workflowNames.has(name)
+      ? await workflowEngine.execute(name, args ?? {})
+      : await proxy.callTool(name, args ?? {});
     return {
       content: [{ type: "text" as const, text: result.content }],
       isError: result.isError,
