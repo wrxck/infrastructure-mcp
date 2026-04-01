@@ -16,27 +16,6 @@ export interface McpClient {
     disconnect(): Promise<void>;
 }
 
-export interface PendingRequest {
-    resolve: (value: unknown) => void;
-    reject: (reason: unknown) => void;
-}
-
-export interface InitializeResponse {
-    protocolVersion: string;
-    capabilities: Record<string, unknown>;
-    clientInfo: { name: string; version: string };
-}
-
-export interface CallToolResult {
-    content: Array<{ type: string; text?: string }>;
-    isError: boolean;
-}
-
-export interface ContentItem {
-    type: string;
-    text?: string;
-}
-
 export interface Tool {
     name: string;
     description?: string;
@@ -56,6 +35,7 @@ export type Screen =
     | "onboard"
     | "audit"
     | "fleet"
+    | "providers"
     | "settings";
 
 export interface AppProps {

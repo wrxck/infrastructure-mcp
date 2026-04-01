@@ -44,6 +44,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "ink": "^5.2.0",
     "ink-select-input": "^6.0.0",
     "ink-spinner": "^5.0.0",

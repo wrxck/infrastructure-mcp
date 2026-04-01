@@ -22,6 +22,7 @@ const KEY_HINTS = [
   { key: "r", label: "refresh" },
   { key: "s", label: "settings" },
   { key: "f", label: "fleet" },
+  { key: "p", label: "providers" },
 ];
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
@@ -117,6 +118,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
     if (_input === "f") {
       onNavigate("fleet");
+    }
+
+    if (_input === "p") {
+      onNavigate("providers");
     }
   });
 
