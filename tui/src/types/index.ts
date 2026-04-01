@@ -35,6 +35,7 @@ export type Screen =
     | "onboard"
     | "audit"
     | "fleet"
+    | "providers"
     | "settings";
 
 export interface AppProps {

@@ -12,6 +12,7 @@ import Onboard from "./screens/onboard.js";
 import Audit from "./screens/audit.js";
 import Fleet from "./screens/fleet.js";
 import Settings from "./screens/settings.js";
+import Providers from "./screens/providers.js";
 import { McpClient, ToolResult } from "./types/index.js";
 import { AppProps, Screen, TuiConfig, Zone } from "./types/index.js";
 
@@ -140,6 +141,10 @@ export default function App({ initialScreen, jarFlag, configPath }: AppProps) {
 
       {screen === "fleet" && (
         <Fleet onBack={() => setScreen("dashboard")} />
+      )}
+
+      {screen === "providers" && (
+        <Providers onBack={() => setScreen("dashboard")} />
       )}
 
       {screen === "settings" && (
