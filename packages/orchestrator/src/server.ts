@@ -34,8 +34,16 @@ export async function startServer(config: InfraConfig): Promise<void> {
 
   const providerTools = proxy.getAllTools();
   const workflowTools = workflowEngine.getTools();
-  const allTools = [...providerTools, ...workflowTools];
+  const builtinTools = [
+    {
+      name: "provider_status",
+      description: "Get the connection status of all configured providers",
+      inputSchema: { type: "object" as const, properties: {} },
+    },
+  ];
+  const allTools = [...providerTools, ...workflowTools, ...builtinTools];
   const workflowNames = new Set(workflowTools.map((t) => t.name));
+  const builtinNames = new Set(builtinTools.map((t) => t.name));
 
   const server = new Server(
     { name: ORCHESTRATOR_NAME, version: ORCHESTRATOR_VERSION },
@@ -48,13 +56,24 @@ export async function startServer(config: InfraConfig): Promise<void> {
         name: t.name,
         description: t.description ?? "",
         inputSchema: t.inputSchema as { type: "object"; properties?: Record<string, unknown>; required?: string[] },
-        annotations: t.annotations,
+        ...("annotations" in t && t.annotations ? { annotations: t.annotations } : {}),
       })),
     };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+
+    if (builtinNames.has(name)) {
+      if (name === "provider_status") {
+        const statuses = proxy.getStatuses();
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(statuses) }],
+          isError: false,
+        };
+      }
+    }
+
     const result = workflowNames.has(name)
       ? await workflowEngine.execute(name, args ?? {})
       : await proxy.callTool(name, args ?? {});
