@@ -40,6 +40,11 @@
             <artifactId>mcp-json-jackson2</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.eclipse.jetty.ee10</groupId>
+            <artifactId>jetty-ee10-servlet</artifactId>
+            <version>12.1.14</version>
+        </dependency>
+        <dependency>
             <groupId>io.github.wrxck</groupId>
             <artifactId>cloudflare-mcp</artifactId>
             <version>1.1.0</version>
