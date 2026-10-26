@@ -5,7 +5,7 @@
 [![Java 21](https://img.shields.io/badge/Java-21-blue)](https://openjdk.org/projects/jdk/21/)
 [![Node 20](https://img.shields.io/badge/Node-20-339933)](https://nodejs.org/)
 [![MCP SDK](https://img.shields.io/badge/MCP_SDK-1.0.0-green)](https://modelcontextprotocol.io/)
-[![Tests](https://img.shields.io/badge/tests-126_passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-138_passing-brightgreen)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-infrastructure--mcp.hesketh.pro-purple)](https://infrastructure-mcp.hesketh.pro)
 
@@ -333,6 +333,35 @@ If both are set, Global API Key takes priority.
 
 \* Provide either `CLOUDFLARE_API_KEY` + `CLOUDFLARE_EMAIL` **or** `CLOUDFLARE_API_TOKEN`.
 
+### Command-line flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--setup` | Run the interactive setup wizard | |
+| `--transport` | `stdio` (one client) or `http` (one shared server for many clients) | `stdio` |
+| `--bind` | Address for `http` | `127.0.0.1` |
+| `--port` | Port for `http` | `7402` |
+| `--auth-token-file` | File with the bearer token; required for `http` | |
+
+### Shared HTTP server
+
+By default each Claude session starts its own copy of the server, in its own JVM. With `--transport http`, one copy serves every session over MCP streamable HTTP at `/mcp`.
+
+```bash
+java -Xmx384m -XX:+UseSerialGC -jar target/infrastructure-mcp-1.2.0.jar \
+  --transport http --port 7402 --auth-token-file /run/credentials/mcp-infrastructure.service/token
+```
+
+The environment variables above still apply in `http` mode. Every request must send `Authorization: Bearer <token>`. The server refuses to start if the token file is readable by every user, or if the token has fewer than 32 characters. Register it in Claude Code with a `headersHelper` that prints the header:
+
+```json
+"infrastructure-mcp": {
+  "type": "http",
+  "url": "http://127.0.0.1:7402/mcp",
+  "headersHelper": "/usr/local/bin/mcp-auth-header infrastructure-mcp"
+}
+```
+
 ### TUI configuration
 
 The TUI loads config from `~/.infrastructure-mcp.json` first, falling back to `~/.claude.json`. Config files are written with `0600` permissions (owner read/write only).
@@ -348,6 +377,7 @@ The TUI loads config from `~/.infrastructure-mcp.json` first, falling back to `~
 - **Domain validation** — onboard wizard validates domain format before submission
 - **No credentials in output** — API tokens are never included in tool responses or console output
 - **Source code review** — setup wizard encourages users to review the code before entering credentials
+- **HTTP auth** — In `http` mode, every request needs the bearer token. The compare is constant-time. Bind to `127.0.0.1` only; containers on the host network can reach loopback, and the token is what keeps them out.
 
 ## Documentation
 
@@ -357,13 +387,13 @@ Full documentation: [infrastructure-mcp.hesketh.pro](https://infrastructure-mcp.
 
 ```bash
 # MCP server (Java)
-mvn clean verify              # 73 tests
+mvn clean verify              # 85 tests
 
 # TUI (TypeScript)
 cd tui && npm test            # 53 tests
 ```
 
-Total: 126 tests across both components.
+Total: 138 tests across both components.
 
 ## License
 
